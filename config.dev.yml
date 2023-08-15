@@ -1,0 +1,17 @@
+app:
+  debug: true
+  secret: verySecret
+
+store:
+  driver: os
+  location: data/
+
+database:
+  driver: inmemory
+  name: database.db
+
+document-ai:
+  project-id:
+  processor-id:
+  location:
+  credsfile: document-ai-creds.json
