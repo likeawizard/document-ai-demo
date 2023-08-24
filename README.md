@@ -5,7 +5,11 @@
 * Set `config.yml` values:
     * `app` `debug: true` will log some extra info
     * `secret` placeholder for secretive things the app might do - signing JWTs, etc...
-    * `store` currently only supports `driver: os` - writes files on the filesystem in the `location` folder. Make sure `location` exists
+    * `store` currently only supports `driver: os|gcloud` -
+        * `os` stores files on the filesystem in the `location` folder. Make sure `location` exists
+        * `gcloud` stores files in the `location` bucket on GCloud storage.
+            * **TODO** Credentials files are hardcoded. Add options to specify a creds file specifically for storage or use a global GCLoud creds file between the processor and store
+            * **TODO** The storage bucket is set to public. This is not a production ready solution and a major privacy breach. The bucket should be set to private and URLs should be created via the `SignedURL` method to not expose the data.
     * `database` `driver: inmemory|sqlite`
         * `inmemory` is a simple non-persistant store. Only usable for quick debugging and in tests to naively mock a database.
         * `sqlite` with `name: <filename.db>` is persistant but still only usable for dirty prototyping
@@ -17,8 +21,9 @@
 
 ## Test it
 * Run unit tests with `go test ./...`
-* The app has two endpoints `/processReceipt` which accepts `POST` requests and `/expense/{uuid}` accepting `GET` requests
-* `processReceipt`
+* The app implements a REST API for `expenses/`
+* Currently only `POST` and `GET` requests are supported.
+* POST `expenses/`
     * Payload `Content-Type: multipart/form-data` with a single `file` field
     * Sample request with `curl`
         ```
@@ -29,10 +34,15 @@
     * On successful request returns a `json` response:
         ```
         {
-            "uuid": "a28a7239-fc88-47c7-9536-569af46d8cb5"
+            "id": "83bfe566-4254-4333-8ed1-7a54f918e796",
+            "filename": "document5.pdf",
+            "status": "pending",
+            "mime_type": "application/pdf",
+            "path": "83bfe566-4254-4333-8ed1-7a54f918e796.pdf",
+            "json_path": "83bfe566-4254-4333-8ed1-7a54f918e796.json"
         }
         ```
-* `expenses/{uuid}`
+* GET `expenses/{uuid}`
     * Sample request with `curl`
         ```
         curl http://localhost:8080/expenses/61b36905-5745-4167-8b6c-5e796445216a
@@ -41,22 +51,23 @@
     * On successful request returns a `json` response:
         ```
         {
-            "Id": "83bfe566-4254-4333-8ed1-7a54f918e796",
-            "Filename": "document5.pdf",
-            "Status": "ready",
-            "MimeType": "application/pdf",
-            "Path": "83bfe566-4254-4333-8ed1-7a54f918e796.pdf",
-            "JSON": "83bfe566-4254-4333-8ed1-7a54f918e796.json"
+            "id": "83bfe566-4254-4333-8ed1-7a54f918e796",
+            "filename": "document5.pdf",
+            "status": "ready",
+            "mime_type": "application/pdf",
+            "path": "83bfe566-4254-4333-8ed1-7a54f918e796.pdf",
+            "json_path": "83bfe566-4254-4333-8ed1-7a54f918e796.json"
         }
         ```
-        * `Id` generated `UUID`
-        * `Filename` original upload filename
-        * `Status` the record status `pending`, `ready`, `failed`
+        * `id` generated `UUID`
+        * `filename` original upload filename
+        * `status` the record status `pending`, `ready`, `failed`
             * When a new record is uploaded an entry with `pending` status is created
             * The document processor sends a request to the processor API and updates with a `ready` status on completion
             * Or if the request timeouts or any other error is encountered the status is set to `failed`
-        * `MimeType` uploaded file MIME Type. See supported formats: [DocumentAI file types](https://cloud.google.com/document-ai/docs/file-types)
-        * `Path` and `JSON` are the stored filenames. Does not include the `store.location` directory. But using the same file store it will retrieve the file correctly. This should be reworked in a complete app and is only a demo version.
+        * `mime_type` uploaded file MIME Type. See supported formats: [DocumentAI file types](https://cloud.google.com/document-ai/docs/file-types)
+        * `path` and `json_path` are the stored filenames. Does not include the `store.location` directory. But using the same file store it will retrieve the file correctly. This should be reworked in a complete app and is only a demo version.
+* **TODO** PATCH `expenses/` - allow adding `Tags` to processed expenses
     
 ## Improvements & Scalability
 * While still only a simple Demo/Test app, I for the most part tried to make it as functional and clean as possible.
