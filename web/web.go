@@ -24,12 +24,15 @@ func NewRouter(cfg config.AppCfg) *gin.Engine {
 	}
 	router := gin.Default()
 	router.SetTrustedProxies(nil)
-	router.POST("uploadReceipt", handlePost)
-	router.GET("expense/:uuid", handleGet)
+
+	expensesRest := router.Group("expenses")
+	expensesRest.POST("", expensesCreate)
+	expensesRest.GET(":uuid", expensesGetOne)
+
 	return router
 }
 
-func handlePost(c *gin.Context) {
+func expensesCreate(c *gin.Context) {
 	id := uuid.New()
 	formFile, _ := c.FormFile("file")
 	mimeType := formFile.Header.Get("Content-Type")
@@ -57,10 +60,10 @@ func handlePost(c *gin.Context) {
 		c.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}
-	c.IndentedJSON(http.StatusOK, gin.H{"uuid": id})
+	c.IndentedJSON(http.StatusOK, record)
 }
 
-func handleGet(c *gin.Context) {
+func expensesGetOne(c *gin.Context) {
 	id := c.Param("uuid")
 	uuid, err := uuid.Parse(id)
 	if err != nil {

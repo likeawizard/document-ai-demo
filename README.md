@@ -22,7 +22,7 @@
     * Payload `Content-Type: multipart/form-data` with a single `file` field
     * Sample request with `curl`
         ```
-        curl -X POST http://localhost:8080/uploadReceipt \
+        curl -X POST http://localhost:8080/expenses \
             -F "file=@receipt3.png" \
             -H "Content-Type: multipart/form-data"
         ```
@@ -32,10 +32,10 @@
             "uuid": "a28a7239-fc88-47c7-9536-569af46d8cb5"
         }
         ```
-* `expense/{uuid}`
+* `expenses/{uuid}`
     * Sample request with `curl`
         ```
-        curl http://localhost:8080/expense/61b36905-5745-4167-8b6c-5e796445216a
+        curl http://localhost:8080/expenses/61b36905-5745-4167-8b6c-5e796445216a
         
         ```
     * On successful request returns a `json` response:
