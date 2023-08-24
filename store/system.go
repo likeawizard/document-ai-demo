@@ -47,3 +47,7 @@ func (ss *SystemStore) Store(filename string, r io.Reader) error {
 	_, err = br.WriteTo(f)
 	return err
 }
+
+func (ss *SystemStore) GetURL(filename string) (string, error) {
+	return "", errors.New("OS File store does not support GetURL")
+}
