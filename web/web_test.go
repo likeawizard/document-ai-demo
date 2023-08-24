@@ -63,7 +63,7 @@ func TestExpenseRoute(t *testing.T) {
 
 	for _, tc := range tcs {
 		w := httptest.NewRecorder()
-		req, _ := http.NewRequest("GET", fmt.Sprintf("/expense/%s", tc.uuid), nil)
+		req, _ := http.NewRequest("GET", fmt.Sprintf("/expenses/%s", tc.uuid), nil)
 		router.ServeHTTP(w, req)
 
 		assert.Equal(t, tc.code, w.Code, tc.name)

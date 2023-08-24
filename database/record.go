@@ -11,12 +11,12 @@ const (
 )
 
 type Record struct {
-	Id       uuid.UUID
-	Filename string
-	Status   Status
-	MimeType string
-	Path     string
-	JSON     string
+	Id       uuid.UUID `json:"id"`
+	Filename string    `json:"filename"`
+	Status   Status    `json:"status"`
+	MimeType string    `json:"mime_type"`
+	Path     string    `json:"path"`
+	JSON     string    `json:"json_path"`
 }
 
 func New(id uuid.UUID) Record {
