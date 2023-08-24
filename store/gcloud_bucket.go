@@ -43,6 +43,9 @@ func (gcStore *GCloudBucket) Store(filename string, r io.Reader) error {
 	w := obj.NewWriter(ctx)
 	br := bufio.NewReader(r)
 	_, err = br.WriteTo(w)
+	if err != nil {
+		return err
+	}
 
 	return w.Close()
 }
