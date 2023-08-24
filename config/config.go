@@ -7,10 +7,11 @@ import (
 )
 
 type Config struct {
-	App    AppCfg        `yaml:"app"`
-	Store  StorageCfg    `yaml:"store"`
-	Db     DbCfg         `yaml:"database"`
-	DocuAI DocumentAICfg `yaml:"document-ai"`
+	App       AppCfg        `yaml:"app"`
+	Store     StorageCfg    `yaml:"store"`
+	Db        DbCfg         `yaml:"database"`
+	DocuAI    DocumentAICfg `yaml:"document-ai"`
+	DocuIntel DocuIntelCfg  `yaml:"docu-intel"`
 }
 
 type AppCfg struct {
@@ -33,6 +34,13 @@ type DocumentAICfg struct {
 	ProcessorId string `yaml:"processor-id"`
 	Location    string `yaml:"location"`
 	CredsFile   string `yaml:"credsfile"`
+}
+
+type DocuIntelCfg struct {
+	Endpoint   string `yaml:"endpoint"`
+	Key        string `yaml:"key"`
+	ModelId    string `yaml:"model-id"`
+	ApiVersion string `yaml:"api-version"`
 }
 
 var Store StorageCfg
