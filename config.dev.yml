@@ -1,6 +1,7 @@
 app:
   debug: true
   secret: verySecret
+  processor-driver: docu-intel
 
 store:
   driver: os

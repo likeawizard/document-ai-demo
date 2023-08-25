@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"time"
 
 	"github.com/likeawizard/document-ai-demo/config"
 	"github.com/likeawizard/document-ai-demo/database"
+	"github.com/likeawizard/document-ai-demo/store"
 )
 
 type DocuIntel struct {
@@ -20,8 +23,9 @@ type DocuIntel struct {
 }
 
 const (
-	KEY_HEADER       = "Ocp-Apim-Subscription-Key"
-	RESULT_ID_HEADER = "Apim-Request-Id"
+	KEY_HEADER        = "Ocp-Apim-Subscription-Key"
+	RESULT_ID_HEADER  = "Apim-Request-Id"
+	MAX_FETCH_RETRIES = 5
 )
 
 func NewDocuIntel(cfg config.DocuIntelCfg) *DocuIntel {
@@ -44,14 +48,16 @@ func (docInt *DocuIntel) Process(record database.Record) error {
 	if err != nil {
 		return fmt.Errorf("error making request: %v", err)
 	}
-
 	if res.StatusCode != http.StatusAccepted {
 		return fmt.Errorf("status not ok: %v", res.Status)
 	}
 
 	id := res.Header.Get(RESULT_ID_HEADER)
-	fmt.Printf("result id: %v\n", id)
-	// TODO
+	if id == "" {
+		return fmt.Errorf("could not retrieve id from response")
+	}
+
+	go docInt.fetchResult(id, record)
 
 	return nil
 }
@@ -81,8 +87,13 @@ func (docInt *DocuIntel) newProcessRequest(record database.Record) (*http.Reques
 	type Payload struct {
 		UrlSource string `json:"urlSource"`
 	}
-	//TODO get actual link from store
-	payload := Payload{UrlSource: "https://storage.googleapis.com/reciept-store/receipt5.png"}
+
+	sourceUrl, err := store.File.GetURL(record.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	payload := Payload{UrlSource: sourceUrl}
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
@@ -109,17 +120,48 @@ func (docInt *DocuIntel) newResultRequest(resultId string) (*http.Request, error
 	return req, nil
 }
 
-func (docInt *DocuIntel) analyzeResults(resultId string) error {
+func (docInt *DocuIntel) analyzeResults(resultId string) ([]byte, error) {
 	req, err := docInt.newResultRequest(resultId)
 	if err != nil {
-		fmt.Printf("error creating request: %v\n", err)
+		return nil, fmt.Errorf("error creating request: %v", err)
 	}
 
 	b, err := docInt.doRequest(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	fmt.Println(string(b))
-	// TODO
-	return nil
+	return b, nil
+}
+
+func (docInt *DocuIntel) fetchResult(resultId string, record database.Record) {
+	retries := MAX_FETCH_RETRIES
+	for {
+		fmt.Println("retries:", retries)
+		if retries == 0 {
+			log.Print("failed DocInt fetchResult retries exceeded")
+			updateWithStatus(record, database.S_FAILED)
+		}
+		b, err := docInt.analyzeResults(resultId)
+		if err != nil {
+			log.Print("failed DocInt analyzeResults:", err)
+		}
+		jMap := make(map[string]string, 0)
+		json.Unmarshal(b, &jMap) // Ignore error. Only care about status field. Rest can fail.
+
+		if jMap["status"] == "succeeded" {
+			jsonPath := fmt.Sprintf("%s.json", record.Id)
+			err = store.File.Store(jsonPath, bytes.NewReader(b))
+			if err != nil {
+				log.Print("failed DocInt store:", err)
+				updateWithStatus(record, database.S_FAILED)
+				break
+			}
+			record.JSON = jsonPath
+			updateWithStatus(record, database.S_READY)
+			break
+		}
+		retries--
+		time.Sleep(time.Duration(MAX_FETCH_RETRIES-retries+1) * time.Second)
+	}
+
 }

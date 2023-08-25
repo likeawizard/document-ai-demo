@@ -12,11 +12,13 @@ type Config struct {
 	Db        DbCfg         `yaml:"database"`
 	DocuAI    DocumentAICfg `yaml:"document-ai"`
 	DocuIntel DocuIntelCfg  `yaml:"docu-intel"`
+	Processor ProcessorCfg
 }
 
 type AppCfg struct {
-	Debug  bool   `yaml:"debug"`
-	Secret string `yaml:"secret"`
+	Debug           bool   `yaml:"debug"`
+	Secret          string `yaml:"secret"`
+	ProcessorDriver string `yaml:"processor-driver"`
 }
 
 type StorageCfg struct {
@@ -27,6 +29,10 @@ type StorageCfg struct {
 type DbCfg struct {
 	Driver string `yaml:"driver"`
 	Name   string `yaml:"name"`
+}
+
+type ProcessorCfg interface {
+	Driver() string
 }
 
 type DocumentAICfg struct {
@@ -46,7 +52,7 @@ type DocuIntelCfg struct {
 var Store StorageCfg
 var App AppCfg
 var Db DbCfg
-var DocumentAI DocumentAICfg
+var Processor ProcessorCfg
 
 const CONFIG_PATH = "config.yml"
 
@@ -54,7 +60,7 @@ func Init(cfg Config) {
 	Store = cfg.Store
 	App = cfg.App
 	Db = cfg.Db
-	DocumentAI = cfg.DocuAI
+	Processor = cfg.Processor
 }
 
 func LoadConfig() (Config, error) {
@@ -71,6 +77,21 @@ func LoadConfig() (Config, error) {
 		return cfg, err
 	}
 
+	switch cfg.App.ProcessorDriver {
+	case "document-ai":
+		cfg.Processor = &cfg.DocuAI
+	case "docu-intel":
+		cfg.Processor = &cfg.DocuIntel
+	}
+
 	return cfg, nil
 
+}
+
+func (cfg *DocumentAICfg) Driver() string {
+	return "document-ai"
+}
+
+func (cfg *DocuIntelCfg) Driver() string {
+	return "docu-intel"
 }
