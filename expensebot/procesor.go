@@ -13,6 +13,7 @@ var Processor DocumentProcessor
 
 type DocumentProcessor interface {
 	Process(record database.Record) error
+	Schema() string
 }
 
 func NewDocumentProcessor(cfg config.ProcessorCfg) (DocumentProcessor, error) {

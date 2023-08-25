@@ -30,6 +30,10 @@ func NewGoogleDocumentAI(cfg config.DocumentAICfg) *GoogleDocumentAI {
 	}
 }
 
+func (docAI *GoogleDocumentAI) Schema() string {
+	return config.SCHEMA_DOCUMENT_AI
+}
+
 func (docAI *GoogleDocumentAI) Process(record database.Record) error {
 	ctx := context.Background()
 	client, err := docAI.newDocumentProcessorClient(ctx)

@@ -38,6 +38,10 @@ func NewDocuIntel(cfg config.DocuIntelCfg) *DocuIntel {
 	}
 }
 
+func (docInt *DocuIntel) Schema() string {
+	return config.SCHEMA_DOC_INT
+}
+
 func (docInt *DocuIntel) Process(record database.Record) error {
 	req, err := docInt.newProcessRequest(record)
 	if err != nil {
