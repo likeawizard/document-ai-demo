@@ -16,20 +16,10 @@ import (
 	"google.golang.org/api/option"
 )
 
-var Processor DocumentProcessor
-
-type DocumentProcessor interface {
-	Process(record database.Record) error
-}
-
 type GoogleDocumentAI struct {
 	credsFile string
 	endpoint  string
 	name      string
-}
-
-func NewDocumentProcessor(cfg config.DocumentAICfg) DocumentProcessor {
-	return NewGoogleDocumentAI(cfg)
 }
 
 func NewGoogleDocumentAI(cfg config.DocumentAICfg) *GoogleDocumentAI {
@@ -76,14 +66,6 @@ func (docAI *GoogleDocumentAI) Process(record database.Record) error {
 		updateWithStatus(record, database.S_READY)
 	}(record)
 	return nil
-}
-
-func updateWithStatus(record database.Record, status database.Status) {
-	if config.App.Debug {
-		log.Printf("record status updated for uuid: %s from: %s to: %s\n", record.Id, record.Status, status)
-	}
-	record.Status = status
-	database.Instance.Update(record)
 }
 
 func (docAI *GoogleDocumentAI) newDocumentProcessorClient(ctx context.Context) (*documentai.DocumentProcessorClient, error) {

@@ -36,7 +36,10 @@ func initAll(cfg config.Config) {
 	}
 
 	database.Instance = db
-	expensebot.Processor = expensebot.NewDocumentProcessor(config.DocumentAI)
+	expensebot.Processor, err = expensebot.NewDocumentProcessor(cfg.Processor)
+	if err != nil {
+		log.Fatalf("failed to initialize document processor: %v\n", err)
+	}
 
 	router := web.NewRouter(cfg.App)
 	web.Router = router
