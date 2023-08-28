@@ -12,6 +12,7 @@ import (
 	"github.com/likeawizard/document-ai-demo/config"
 	"github.com/likeawizard/document-ai-demo/database"
 	"github.com/likeawizard/document-ai-demo/store"
+	"github.com/likeawizard/document-ai-demo/transform"
 )
 
 type DocuIntel struct {
@@ -139,13 +140,16 @@ func (docInt *DocuIntel) analyzeResults(resultId string) ([]byte, error) {
 
 func (docInt *DocuIntel) fetchResult(resultId string, record database.Record) {
 	retries := MAX_FETCH_RETRIES
+	success := false
+	var b []byte
+	var err error
 	for {
 		fmt.Println("retries:", retries)
 		if retries == 0 {
 			log.Print("failed DocInt fetchResult retries exceeded")
 			updateWithStatus(record, database.S_FAILED)
 		}
-		b, err := docInt.analyzeResults(resultId)
+		b, err = docInt.analyzeResults(resultId)
 		if err != nil {
 			log.Print("failed DocInt analyzeResults:", err)
 		}
@@ -161,11 +165,21 @@ func (docInt *DocuIntel) fetchResult(resultId string, record database.Record) {
 				break
 			}
 			record.JSON = jsonPath
+			success = true
 			updateWithStatus(record, database.S_READY)
 			break
 		}
 		retries--
 		time.Sleep(time.Duration(MAX_FETCH_RETRIES-retries+1) * time.Second)
+	}
+
+	if success {
+		dt, err := transform.NewDataTransform(docInt.Schema(), b, record)
+		if err != nil {
+			log.Printf("could not crate data transform for Azure DocuIntel: %s", err)
+		}
+
+		go dt.ToCommon()
 	}
 
 }
