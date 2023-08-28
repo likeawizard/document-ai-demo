@@ -3,22 +3,14 @@ package transform
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"time"
-
-	"github.com/likeawizard/document-ai-demo/database"
-)
-
-const (
-	timeLayout = "2006-01-02 15:04:05"
 )
 
 type DocuIntelTransform struct {
-	Record database.Record
-	Data   []byte
+	Data []byte
 }
 
-func NewDocuIntelTransform(data []byte, record database.Record) *DocuIntelTransform {
+func NewDocuIntelTransform(data []byte) *DocuIntelTransform {
 	return &DocuIntelTransform{
 		Data: data,
 	}
@@ -31,14 +23,6 @@ func (dt *DocuIntelTransform) ToCommon() (*Expense, error) {
 		fmt.Println("Error parsing DocuIntel data:", err)
 	}
 	expense := dt.mapFields(obj.AnalyzeResult.Documents[0].Fields)
-	fmt.Printf("%+v\n", expense)
-
-	data, err := json.Marshal(expense)
-	if err != nil {
-		log.Printf("failed to marshal Expense in Docu Intel Transform: %s", err)
-	}
-	// TODO !!
-	_ = data
 
 	return &expense, nil
 }

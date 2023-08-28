@@ -1,4 +1,4 @@
-package expensebot
+package processor
 
 import (
 	"errors"
@@ -60,13 +60,10 @@ func NewDocumentProcessor(cfg config.ProcessorCfg) (DocumentProcessor, error) {
 	}
 }
 
-func (ps *ProcessorServcie) Process(record database.Record) {
+func (ps *ProcessorServcie) Process(record database.Record) error {
 	err := ps.Processor.Process(record, ps.FileStore)
 	if err != nil {
-		record.Status = database.S_FAILED
-		ps.Db.Update(record)
+		return err
 	}
-
-	record.JSON = fmt.Sprintf("%s.json", record.Id.String())
-	ps.Db.Update(record)
+	return nil
 }

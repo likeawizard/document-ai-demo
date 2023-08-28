@@ -1,4 +1,4 @@
-package expensebot
+package processor
 
 import (
 	"bytes"
@@ -33,13 +33,13 @@ func (docAI *GoogleDocumentAI) Schema() string {
 	return config.SCHEMA_DOCUMENT_AI
 }
 
-func (docAI *GoogleDocumentAI) Process(record database.Record, fs store.FileStore) error {
+func (docAI *GoogleDocumentAI) Process(record database.Record, fileStore store.FileStore) error {
 	ctx := context.Background()
 	client, err := docAI.newDocumentProcessorClient(ctx)
 	if err != nil {
 		return err
 	}
-	req, err := docAI.newDocumentProcessorRequest(ctx, record, fs)
+	req, err := docAI.newDocumentProcessorRequest(ctx, record, fileStore)
 	if err != nil {
 		return err
 	}
@@ -54,7 +54,7 @@ func (docAI *GoogleDocumentAI) Process(record database.Record, fs store.FileStor
 		return fmt.Errorf("failed GoogleDocumentAI doc to json marshal: %w", err)
 	}
 	jsonPath := fmt.Sprintf("%s.json", record.Id)
-	err = fs.Store(jsonPath, bytes.NewReader(json))
+	err = fileStore.Store(jsonPath, bytes.NewReader(json))
 	if err != nil {
 		return fmt.Errorf("failed GoogleDocumentAI file storage: %w", err)
 	}
@@ -68,8 +68,8 @@ func (docAI *GoogleDocumentAI) newDocumentProcessorClient(ctx context.Context) (
 	return documentai.NewDocumentProcessorClient(ctx, endpointOpt, auth)
 }
 
-func (docAI *GoogleDocumentAI) newDocumentProcessorRequest(ctx context.Context, record database.Record, fs store.FileStore) (*documentaipb.ProcessRequest, error) {
-	f, err := fs.Get(record.Path)
+func (docAI *GoogleDocumentAI) newDocumentProcessorRequest(ctx context.Context, record database.Record, fileStore store.FileStore) (*documentaipb.ProcessRequest, error) {
+	f, err := fileStore.Get(record.Path)
 	if err != nil {
 		return nil, err
 	}

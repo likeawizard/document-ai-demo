@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/likeawizard/document-ai-demo/config"
 	"github.com/likeawizard/document-ai-demo/database"
+	"github.com/likeawizard/document-ai-demo/expense"
 	"github.com/likeawizard/document-ai-demo/store"
 )
 
@@ -17,16 +18,18 @@ var Router *gin.Engine
 type RestService struct {
 	Router    *gin.Engine
 	Db        database.DB
+	EventChan expense.EventChan
 	FileStore store.FileStore
 }
 
 // Define allowed file types. source: https://cloud.google.com/document-ai/docs/file-types
 var supportedMimeTypes = []string{"application/pdf", "image/gif", "image/tiff", "image/jpeg", "image/png", "image/bmp", "image/webp"}
 
-func NewRestService(cfg config.Config) (*RestService, error) {
+func NewRestService(cfg config.Config, eventChan expense.EventChan) (*RestService, error) {
 	fmt.Printf("%+v\n", cfg)
 	rest := RestService{
-		Router: NewRouter(cfg.App),
+		Router:    NewRouter(cfg.App),
+		EventChan: eventChan,
 	}
 
 	db, err := database.NewDataBase(cfg.Db)
@@ -85,10 +88,9 @@ func (rest *RestService) expensesCreate(c *gin.Context) {
 	record.MimeType = mimeType
 	record.Path = newFilename
 	rest.Db.Create(record)
-	if err != nil {
-		c.AbortWithError(http.StatusInternalServerError, err)
-		return
-	}
+
+	rest.EventChan.MsgNew(record)
+
 	c.IndentedJSON(http.StatusOK, record)
 }
 

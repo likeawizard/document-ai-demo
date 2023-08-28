@@ -1,4 +1,4 @@
-package expensebot
+package processor
 
 import (
 	"bytes"
@@ -85,14 +85,14 @@ func (docInt *DocuIntel) doRequest(req *http.Request) ([]byte, error) {
 	return b, nil
 }
 
-func (docInt *DocuIntel) newProcessRequest(record database.Record, fs store.FileStore) (*http.Request, error) {
+func (docInt *DocuIntel) newProcessRequest(record database.Record, fileStore store.FileStore) (*http.Request, error) {
 	url := fmt.Sprintf("%s/formrecognizer/documentModels/%s:analyze?api-version=%s", docInt.endpoint, docInt.modelId, docInt.apiVersion)
 
 	type Payload struct {
 		UrlSource string `json:"urlSource"`
 	}
 
-	sourceUrl, err := fs.GetURL(record.Path)
+	sourceUrl, err := fileStore.GetURL(record.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +137,7 @@ func (docInt *DocuIntel) analyzeResults(resultId string) ([]byte, error) {
 	return b, nil
 }
 
-func (docInt *DocuIntel) fetchResult(resultId string, record database.Record, fs store.FileStore) error {
+func (docInt *DocuIntel) fetchResult(resultId string, record database.Record, fileStore store.FileStore) error {
 	retries := MAX_FETCH_RETRIES
 	var b []byte
 	var err error
@@ -155,7 +155,7 @@ func (docInt *DocuIntel) fetchResult(resultId string, record database.Record, fs
 
 		if jMap["status"] == "succeeded" {
 			jsonPath := fmt.Sprintf("%s.json", record.Id)
-			err = fs.Store(jsonPath, bytes.NewReader(b))
+			err = fileStore.Store(jsonPath, bytes.NewReader(b))
 			if err != nil {
 				return fmt.Errorf("failed DocInt store: %w", err)
 			}
