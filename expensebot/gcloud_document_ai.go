@@ -6,14 +6,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 
 	documentai "cloud.google.com/go/documentai/apiv1"
 	"cloud.google.com/go/documentai/apiv1/documentaipb"
 	"github.com/likeawizard/document-ai-demo/config"
 	"github.com/likeawizard/document-ai-demo/database"
 	"github.com/likeawizard/document-ai-demo/store"
-	"github.com/likeawizard/document-ai-demo/transform"
 	"google.golang.org/api/option"
 )
 
@@ -35,48 +33,32 @@ func (docAI *GoogleDocumentAI) Schema() string {
 	return config.SCHEMA_DOCUMENT_AI
 }
 
-func (docAI *GoogleDocumentAI) Process(record database.Record) error {
+func (docAI *GoogleDocumentAI) Process(record database.Record, fs store.FileStore) error {
 	ctx := context.Background()
 	client, err := docAI.newDocumentProcessorClient(ctx)
 	if err != nil {
 		return err
 	}
-	req, err := docAI.newDocumentProcessorRequest(ctx, record)
+	req, err := docAI.newDocumentProcessorRequest(ctx, record, fs)
 	if err != nil {
 		return err
 	}
 
-	go func(record database.Record) {
-		resp, err := client.ProcessDocument(ctx, req)
-		if err != nil {
-			log.Print("failed GoogleDocumentAI ProcessDocument call:", err)
-			updateWithStatus(record, database.S_FAILED)
-			return
-		}
-		doc := resp.GetDocument()
-		json, err := json.Marshal(doc)
-		if err != nil {
-			log.Print("failed GoogleDocumentAI doc to json marshal:", err)
-			updateWithStatus(record, database.S_FAILED)
-			return
-		}
-		jsonPath := fmt.Sprintf("%s.json", record.Id)
-		err = store.File.Store(jsonPath, bytes.NewReader(json))
-		if err != nil {
-			log.Print("failed GoogleDocumentAI file storage:", err)
-			updateWithStatus(record, database.S_FAILED)
-			return
-		}
-		record.JSON = jsonPath
-		updateWithStatus(record, database.S_READY)
+	resp, err := client.ProcessDocument(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed GoogleDocumentAI ProcessDocument call: %w", err)
+	}
+	doc := resp.GetDocument()
+	json, err := json.Marshal(doc)
+	if err != nil {
+		return fmt.Errorf("failed GoogleDocumentAI doc to json marshal: %w", err)
+	}
+	jsonPath := fmt.Sprintf("%s.json", record.Id)
+	err = fs.Store(jsonPath, bytes.NewReader(json))
+	if err != nil {
+		return fmt.Errorf("failed GoogleDocumentAI file storage: %w", err)
+	}
 
-		dt, err := transform.NewDataTransform(docAI.Schema(), json, record)
-		if err != nil {
-			log.Printf("could not crate data transform for Azure DocuIntel: %s", err)
-		}
-
-		go dt.ToCommon()
-	}(record)
 	return nil
 }
 
@@ -86,8 +68,8 @@ func (docAI *GoogleDocumentAI) newDocumentProcessorClient(ctx context.Context) (
 	return documentai.NewDocumentProcessorClient(ctx, endpointOpt, auth)
 }
 
-func (docAI *GoogleDocumentAI) newDocumentProcessorRequest(ctx context.Context, record database.Record) (*documentaipb.ProcessRequest, error) {
-	f, err := store.File.Get(record.Path)
+func (docAI *GoogleDocumentAI) newDocumentProcessorRequest(ctx context.Context, record database.Record, fs store.FileStore) (*documentaipb.ProcessRequest, error) {
+	f, err := fs.Get(record.Path)
 	if err != nil {
 		return nil, err
 	}

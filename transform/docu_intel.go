@@ -1,14 +1,12 @@
 package transform
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
 	"time"
 
 	"github.com/likeawizard/document-ai-demo/database"
-	"github.com/likeawizard/document-ai-demo/store"
 )
 
 const (
@@ -39,8 +37,8 @@ func (dt *DocuIntelTransform) ToCommon() (*Expense, error) {
 	if err != nil {
 		log.Printf("failed to marshal Expense in Docu Intel Transform: %s", err)
 	}
-
-	store.File.Store("common-"+dt.Record.JSON, bytes.NewReader(data))
+	// TODO !!
+	_ = data
 
 	return &expense, nil
 }

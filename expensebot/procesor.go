@@ -3,17 +3,47 @@ package expensebot
 import (
 	"errors"
 	"fmt"
-	"log"
 
 	"github.com/likeawizard/document-ai-demo/config"
 	"github.com/likeawizard/document-ai-demo/database"
+	"github.com/likeawizard/document-ai-demo/store"
 )
 
 var Processor DocumentProcessor
 
+type ProcessorServcie struct {
+	Processor DocumentProcessor
+	FileStore store.FileStore
+	Db        database.DB
+}
+
 type DocumentProcessor interface {
-	Process(record database.Record) error
+	Process(record database.Record, fs store.FileStore) error
 	Schema() string
+}
+
+func NewProcessorService(cfg config.Config) (*ProcessorServcie, error) {
+	ps := ProcessorServcie{}
+
+	processor, err := NewDocumentProcessor(cfg.Processor)
+	if err != nil {
+		return nil, err
+	}
+	ps.Processor = processor
+
+	db, err := database.NewDataBase(cfg.Db)
+	if err != nil {
+		return nil, err
+	}
+	ps.Db = db
+
+	store, err := store.NewFileStore(cfg.Store)
+	if err != nil {
+		return nil, err
+	}
+	ps.FileStore = store
+
+	return &ps, nil
 }
 
 func NewDocumentProcessor(cfg config.ProcessorCfg) (DocumentProcessor, error) {
@@ -30,14 +60,13 @@ func NewDocumentProcessor(cfg config.ProcessorCfg) (DocumentProcessor, error) {
 	}
 }
 
-// TODO you do not belong here
-func updateWithStatus(record database.Record, status database.Status) {
-	if config.App.Debug {
-		log.Printf("record status updated for uuid: %s from: %s to: %s\n", record.Id, record.Status, status)
-	}
-	record.Status = status
-	err := database.Instance.Update(record)
+func (ps *ProcessorServcie) Process(record database.Record) {
+	err := ps.Processor.Process(record, ps.FileStore)
 	if err != nil {
-		log.Printf("failed updating record: %v\n", err)
+		record.Status = database.S_FAILED
+		ps.Db.Update(record)
 	}
+
+	record.JSON = fmt.Sprintf("%s.json", record.Id.String())
+	ps.Db.Update(record)
 }

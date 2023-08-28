@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/likeawizard/document-ai-demo/config"
 	"github.com/likeawizard/document-ai-demo/database"
-	"github.com/likeawizard/document-ai-demo/expensebot"
 	"github.com/likeawizard/document-ai-demo/store"
 )
 
@@ -86,7 +85,6 @@ func (rest *RestService) expensesCreate(c *gin.Context) {
 	record.MimeType = mimeType
 	record.Path = newFilename
 	rest.Db.Create(record)
-	err = expensebot.Processor.Process(record)
 	if err != nil {
 		c.AbortWithError(http.StatusInternalServerError, err)
 		return

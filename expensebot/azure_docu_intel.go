@@ -3,16 +3,15 @@ package expensebot
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"time"
 
 	"github.com/likeawizard/document-ai-demo/config"
 	"github.com/likeawizard/document-ai-demo/database"
 	"github.com/likeawizard/document-ai-demo/store"
-	"github.com/likeawizard/document-ai-demo/transform"
 )
 
 type DocuIntel struct {
@@ -43,8 +42,8 @@ func (docInt *DocuIntel) Schema() string {
 	return config.SCHEMA_DOC_INT
 }
 
-func (docInt *DocuIntel) Process(record database.Record) error {
-	req, err := docInt.newProcessRequest(record)
+func (docInt *DocuIntel) Process(record database.Record, fs store.FileStore) error {
+	req, err := docInt.newProcessRequest(record, fs)
 	if err != nil {
 		return err
 	}
@@ -62,7 +61,7 @@ func (docInt *DocuIntel) Process(record database.Record) error {
 		return fmt.Errorf("could not retrieve id from response")
 	}
 
-	go docInt.fetchResult(id, record)
+	docInt.fetchResult(id, record, fs)
 
 	return nil
 }
@@ -86,14 +85,14 @@ func (docInt *DocuIntel) doRequest(req *http.Request) ([]byte, error) {
 	return b, nil
 }
 
-func (docInt *DocuIntel) newProcessRequest(record database.Record) (*http.Request, error) {
+func (docInt *DocuIntel) newProcessRequest(record database.Record, fs store.FileStore) (*http.Request, error) {
 	url := fmt.Sprintf("%s/formrecognizer/documentModels/%s:analyze?api-version=%s", docInt.endpoint, docInt.modelId, docInt.apiVersion)
 
 	type Payload struct {
 		UrlSource string `json:"urlSource"`
 	}
 
-	sourceUrl, err := store.File.GetURL(record.Path)
+	sourceUrl, err := fs.GetURL(record.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -138,48 +137,34 @@ func (docInt *DocuIntel) analyzeResults(resultId string) ([]byte, error) {
 	return b, nil
 }
 
-func (docInt *DocuIntel) fetchResult(resultId string, record database.Record) {
+func (docInt *DocuIntel) fetchResult(resultId string, record database.Record, fs store.FileStore) error {
 	retries := MAX_FETCH_RETRIES
-	success := false
 	var b []byte
 	var err error
 	for {
 		fmt.Println("retries:", retries)
 		if retries == 0 {
-			log.Print("failed DocInt fetchResult retries exceeded")
-			updateWithStatus(record, database.S_FAILED)
+			return errors.New("failed DocInt fetchResult retries exceeded")
 		}
 		b, err = docInt.analyzeResults(resultId)
 		if err != nil {
-			log.Print("failed DocInt analyzeResults:", err)
+			return fmt.Errorf("failed DocInt analyzeResults: %w", err)
 		}
 		jMap := make(map[string]string, 0)
 		json.Unmarshal(b, &jMap) // Ignore error. Only care about status field. Rest can fail.
 
 		if jMap["status"] == "succeeded" {
 			jsonPath := fmt.Sprintf("%s.json", record.Id)
-			err = store.File.Store(jsonPath, bytes.NewReader(b))
+			err = fs.Store(jsonPath, bytes.NewReader(b))
 			if err != nil {
-				log.Print("failed DocInt store:", err)
-				updateWithStatus(record, database.S_FAILED)
-				break
+				return fmt.Errorf("failed DocInt store: %w", err)
 			}
 			record.JSON = jsonPath
-			success = true
-			updateWithStatus(record, database.S_READY)
 			break
 		}
 		retries--
 		time.Sleep(time.Duration(MAX_FETCH_RETRIES-retries+1) * time.Second)
 	}
 
-	if success {
-		dt, err := transform.NewDataTransform(docInt.Schema(), b, record)
-		if err != nil {
-			log.Printf("could not crate data transform for Azure DocuIntel: %s", err)
-		}
-
-		go dt.ToCommon()
-	}
-
+	return nil
 }
