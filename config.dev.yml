@@ -8,8 +8,12 @@ store:
   location: data/
 
 database:
-  driver: inmemory
-  name: database.db
+  driver: postgres
+  name: 
+  user: 
+  password:
+  host: db
+  port: 5432
 
 document-ai:
   project-id:

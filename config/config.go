@@ -6,6 +6,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const (
+	SCHEMA_DOC_INT     = "docu-intel"
+	SCHEMA_DOCUMENT_AI = "document-ai"
+)
+
 type Config struct {
 	App       AppCfg        `yaml:"app"`
 	Store     StorageCfg    `yaml:"store"`
@@ -27,8 +32,12 @@ type StorageCfg struct {
 }
 
 type DbCfg struct {
-	Driver string `yaml:"driver"`
-	Name   string `yaml:"name"`
+	Driver   string `yaml:"driver"`
+	Name     string `yaml:"name"`
+	User     string `yaml:"user"`
+	Password string `yaml:"password"`
+	Host     string `yaml:"host"`
+	Port     string `yaml:"port"`
 }
 
 type ProcessorCfg interface {
@@ -78,9 +87,9 @@ func LoadConfig() (Config, error) {
 	}
 
 	switch cfg.App.ProcessorDriver {
-	case "document-ai":
+	case SCHEMA_DOCUMENT_AI:
 		cfg.Processor = &cfg.DocuAI
-	case "docu-intel":
+	case SCHEMA_DOC_INT:
 		cfg.Processor = &cfg.DocuIntel
 	}
 
@@ -89,9 +98,9 @@ func LoadConfig() (Config, error) {
 }
 
 func (cfg *DocumentAICfg) Driver() string {
-	return "document-ai"
+	return SCHEMA_DOCUMENT_AI
 }
 
 func (cfg *DocuIntelCfg) Driver() string {
-	return "docu-intel"
+	return SCHEMA_DOC_INT
 }

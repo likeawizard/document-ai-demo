@@ -11,6 +11,7 @@ var Instance DB
 
 const (
 	DRIVER_SQLITE    = "sqlite"
+	DRIVER_POSTGRES  = "postgres"
 	DRIVER_IN_MEMORY = "inmemory"
 )
 
@@ -24,6 +25,8 @@ func NewDataBase(cfg config.DbCfg) (DB, error) {
 	switch cfg.Driver {
 	case DRIVER_SQLITE:
 		return NewSQLiteDb(cfg)
+	case DRIVER_POSTGRES:
+		return NewPostgres(cfg)
 	case DRIVER_IN_MEMORY:
 		return NewInMemoryDb(), nil
 	default:

@@ -13,6 +13,7 @@ import (
 	"github.com/likeawizard/document-ai-demo/config"
 	"github.com/likeawizard/document-ai-demo/database"
 	"github.com/likeawizard/document-ai-demo/store"
+	"github.com/likeawizard/document-ai-demo/transform"
 	"google.golang.org/api/option"
 )
 
@@ -28,6 +29,10 @@ func NewGoogleDocumentAI(cfg config.DocumentAICfg) *GoogleDocumentAI {
 		endpoint:  fmt.Sprintf("%s-documentai.googleapis.com:443", cfg.Location),
 		name:      fmt.Sprintf("projects/%s/locations/%s/processors/%s", cfg.ProjectId, cfg.Location, cfg.ProcessorId),
 	}
+}
+
+func (docAI *GoogleDocumentAI) Schema() string {
+	return config.SCHEMA_DOCUMENT_AI
 }
 
 func (docAI *GoogleDocumentAI) Process(record database.Record) error {
@@ -64,6 +69,13 @@ func (docAI *GoogleDocumentAI) Process(record database.Record) error {
 		}
 		record.JSON = jsonPath
 		updateWithStatus(record, database.S_READY)
+
+		dt, err := transform.NewDataTransform(docAI.Schema(), json, record)
+		if err != nil {
+			log.Printf("could not crate data transform for Azure DocuIntel: %s", err)
+		}
+
+		go dt.ToCommon()
 	}(record)
 	return nil
 }
