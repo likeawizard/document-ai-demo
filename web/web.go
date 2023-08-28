@@ -15,24 +15,55 @@ import (
 
 var Router *gin.Engine
 
+type RestService struct {
+	Router    *gin.Engine
+	Db        database.DB
+	FileStore store.FileStore
+}
+
 // Define allowed file types. source: https://cloud.google.com/document-ai/docs/file-types
 var supportedMimeTypes = []string{"application/pdf", "image/gif", "image/tiff", "image/jpeg", "image/png", "image/bmp", "image/webp"}
 
+func NewRestService(cfg config.Config) (*RestService, error) {
+	fmt.Printf("%+v\n", cfg)
+	rest := RestService{
+		Router: NewRouter(cfg.App),
+	}
+
+	db, err := database.NewDataBase(cfg.Db)
+	if err != nil {
+		return nil, err
+	}
+	rest.Db = db
+
+	store, err := store.NewFileStore(cfg.Store)
+	if err != nil {
+		return nil, err
+	}
+	rest.FileStore = store
+	rest.registerRoutes()
+
+	return &rest, nil
+
+}
+
+func (rest *RestService) registerRoutes() {
+	expenses := rest.Router.Group("expenses")
+	expenses.POST("", rest.expensesCreate)
+	expenses.GET(":uuid", rest.expensesGetOne)
+}
+
 func NewRouter(cfg config.AppCfg) *gin.Engine {
-	if !config.App.Debug {
+	if !cfg.Debug {
 		gin.SetMode(gin.ReleaseMode)
 	}
 	router := gin.Default()
 	router.SetTrustedProxies(nil)
 
-	expensesRest := router.Group("expenses")
-	expensesRest.POST("", expensesCreate)
-	expensesRest.GET(":uuid", expensesGetOne)
-
 	return router
 }
 
-func expensesCreate(c *gin.Context) {
+func (rest *RestService) expensesCreate(c *gin.Context) {
 	id := uuid.New()
 	formFile, _ := c.FormFile("file")
 	mimeType := formFile.Header.Get("Content-Type")
@@ -48,13 +79,13 @@ func expensesCreate(c *gin.Context) {
 	defer f.Close()
 
 	newFilename := fmt.Sprintf("%s%s", id, filepath.Ext(formFile.Filename))
-	store.File.Store(newFilename, f)
+	rest.FileStore.Store(newFilename, f)
 
 	record := database.New(id)
 	record.Filename = formFile.Filename
 	record.MimeType = mimeType
 	record.Path = newFilename
-	database.Instance.Create(record)
+	rest.Db.Create(record)
 	err = expensebot.Processor.Process(record)
 	if err != nil {
 		c.AbortWithError(http.StatusInternalServerError, err)
@@ -63,7 +94,7 @@ func expensesCreate(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, record)
 }
 
-func expensesGetOne(c *gin.Context) {
+func (rest *RestService) expensesGetOne(c *gin.Context) {
 	id := c.Param("uuid")
 	uuid, err := uuid.Parse(id)
 	if err != nil {
@@ -71,7 +102,7 @@ func expensesGetOne(c *gin.Context) {
 		return
 	}
 
-	record, err := database.Instance.Get(uuid)
+	record, err := rest.Db.Get(uuid)
 	if err != nil {
 		c.AbortWithError(http.StatusNotFound, err)
 		return

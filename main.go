@@ -16,9 +16,12 @@ func main() {
 		log.Fatalf("failed to load config: %v\n", err)
 	}
 
-	initAll(cfg)
+	restService, err := web.NewRestService(cfg)
+	if err != nil {
+		log.Fatalf("failed to initialize restService: %s", err)
+	}
 
-	web.Router.Run()
+	restService.Router.Run()
 }
 
 func initAll(cfg config.Config) {
@@ -40,7 +43,4 @@ func initAll(cfg config.Config) {
 	if err != nil {
 		log.Fatalf("failed to initialize document processor: %v\n", err)
 	}
-
-	router := web.NewRouter(cfg.App)
-	web.Router = router
 }
