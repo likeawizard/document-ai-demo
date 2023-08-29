@@ -7,8 +7,6 @@ import (
 	"github.com/likeawizard/document-ai-demo/config"
 )
 
-var Instance DB
-
 const (
 	DRIVER_SQLITE    = "sqlite"
 	DRIVER_POSTGRES  = "postgres"

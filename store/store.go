@@ -18,8 +18,6 @@ type FileStore interface {
 	GetURL(string) (string, error)
 }
 
-var File FileStore
-
 func NewFileStore(cfg config.StorageCfg) (FileStore, error) {
 	switch cfg.Driver {
 	case DRIVER_FS:

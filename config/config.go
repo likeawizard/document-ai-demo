@@ -58,19 +58,7 @@ type DocuIntelCfg struct {
 	ApiVersion string `yaml:"api-version"`
 }
 
-var Store StorageCfg
-var App AppCfg
-var Db DbCfg
-var Processor ProcessorCfg
-
 const CONFIG_PATH = "config.yml"
-
-func Init(cfg Config) {
-	Store = cfg.Store
-	App = cfg.App
-	Db = cfg.Db
-	Processor = cfg.Processor
-}
 
 func LoadConfig() (Config, error) {
 	var cfg Config

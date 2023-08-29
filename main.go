@@ -4,9 +4,7 @@ import (
 	"log"
 
 	"github.com/likeawizard/document-ai-demo/config"
-	"github.com/likeawizard/document-ai-demo/database"
-	"github.com/likeawizard/document-ai-demo/expensebot"
-	"github.com/likeawizard/document-ai-demo/store"
+	"github.com/likeawizard/document-ai-demo/expense"
 	"github.com/likeawizard/document-ai-demo/web"
 )
 
@@ -16,31 +14,17 @@ func main() {
 		log.Fatalf("failed to load config: %v\n", err)
 	}
 
-	initAll(cfg)
-
-	web.Router.Run()
-}
-
-func initAll(cfg config.Config) {
-	config.Init(cfg)
-
-	fileStore, err := store.NewFileStore(cfg.Store)
+	processorEngine, err := expense.NewExpenseEngine(cfg)
 	if err != nil {
-		log.Fatalf("unable to initialize file store: %v\n", err)
+		log.Fatalf("failed to initialize processorEngine: %v\n", err)
+	}
+	go processorEngine.Listen()
+	procChan := processorEngine.GetSendChan()
+
+	restService, err := web.NewRestService(cfg, procChan)
+	if err != nil {
+		log.Fatalf("failed to initialize restService: %s", err)
 	}
 
-	store.File = fileStore
-	db, err := database.NewDataBase(cfg.Db)
-	if err != nil {
-		log.Fatalf("failed to initialize database: %v\n", err)
-	}
-
-	database.Instance = db
-	expensebot.Processor, err = expensebot.NewDocumentProcessor(cfg.Processor)
-	if err != nil {
-		log.Fatalf("failed to initialize document processor: %v\n", err)
-	}
-
-	router := web.NewRouter(cfg.App)
-	web.Router = router
+	restService.Router.Run()
 }
