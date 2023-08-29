@@ -1,6 +1,10 @@
 package database
 
-import "github.com/google/uuid"
+import (
+	"fmt"
+
+	"github.com/google/uuid"
+)
 
 type Status string
 
@@ -10,18 +14,25 @@ const (
 	S_FAILED  Status = "failed"
 )
 
-type Record struct {
+type Receipt struct {
 	Id       uuid.UUID `json:"id"`
 	Filename string    `json:"filename"`
 	Status   Status    `json:"status"`
 	MimeType string    `json:"mime_type"`
 	Path     string    `json:"path"`
-	JSON     string    `json:"json_path"`
 }
 
-func New(id uuid.UUID) Record {
-	return Record{
+func New(id uuid.UUID) Receipt {
+	return Receipt{
 		Id:     id,
 		Status: S_PENDING,
 	}
+}
+
+func (r Receipt) GetJsonPath() string {
+	return fmt.Sprintf("%s.json", r.Id)
+}
+
+func (r Receipt) GetExpensePath() string {
+	return fmt.Sprintf("%s-expense.json", r.Id)
 }

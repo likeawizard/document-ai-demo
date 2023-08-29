@@ -82,15 +82,15 @@ func (rest *RestService) expensesCreate(c *gin.Context) {
 	newFilename := fmt.Sprintf("%s%s", id, filepath.Ext(formFile.Filename))
 	rest.FileStore.Store(newFilename, f)
 
-	record := database.New(id)
-	record.Filename = formFile.Filename
-	record.MimeType = mimeType
-	record.Path = newFilename
-	rest.Db.Create(record)
+	receipt := database.New(id)
+	receipt.Filename = formFile.Filename
+	receipt.MimeType = mimeType
+	receipt.Path = newFilename
+	rest.Db.Create(receipt)
 
-	rest.EventChan.MsgNew(record)
+	rest.EventChan.MsgNew(receipt)
 
-	c.IndentedJSON(http.StatusOK, record)
+	c.IndentedJSON(http.StatusOK, receipt)
 }
 
 func (rest *RestService) expensesGetOne(c *gin.Context) {
@@ -101,13 +101,13 @@ func (rest *RestService) expensesGetOne(c *gin.Context) {
 		return
 	}
 
-	record, err := rest.Db.Get(uuid)
+	receipt, err := rest.Db.Get(uuid)
 	if err != nil {
 		c.AbortWithError(http.StatusNotFound, err)
 		return
 	}
 
-	c.IndentedJSON(http.StatusOK, record)
+	c.IndentedJSON(http.StatusOK, receipt)
 }
 
 func isSupportedMimeType(mimeType string) bool {

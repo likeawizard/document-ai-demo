@@ -18,7 +18,7 @@ type ProcessorServcie struct {
 }
 
 type DocumentProcessor interface {
-	Process(record database.Record, fs store.FileStore) error
+	Process(receipt database.Receipt, fs store.FileStore) error
 	Schema() string
 }
 
@@ -60,8 +60,8 @@ func NewDocumentProcessor(cfg config.ProcessorCfg) (DocumentProcessor, error) {
 	}
 }
 
-func (ps *ProcessorServcie) Process(record database.Record) error {
-	err := ps.Processor.Process(record, ps.FileStore)
+func (ps *ProcessorServcie) Process(receipt database.Receipt) error {
+	err := ps.Processor.Process(receipt, ps.FileStore)
 	if err != nil {
 		return err
 	}

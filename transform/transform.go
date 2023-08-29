@@ -35,8 +35,8 @@ func NewDataTransformService(cfg config.Config) (*DataTransformService, error) {
 	return &dts, nil
 }
 
-func (dts *DataTransformService) Transform(record database.Record, schema string) error {
-	r, err := dts.FileStore.Get(record.JSON)
+func (dts *DataTransformService) Transform(receipt database.Receipt, schema string) error {
+	r, err := dts.FileStore.Get(receipt.GetJsonPath())
 	if err != nil {
 		return err
 	}
@@ -62,7 +62,7 @@ func (dts *DataTransformService) Transform(record database.Record, schema string
 		return err
 	}
 
-	err = dts.FileStore.Store(record.JSON, bytes.NewReader(data))
+	err = dts.FileStore.Store(receipt.GetExpensePath(), bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
