@@ -29,7 +29,7 @@ func (dt *DocumentAiTransform) ToCommon() (*Expense, error) {
 	obj := RawDocumentAiData{}
 	err := json.Unmarshal(dt.Data, &obj)
 	if err != nil {
-		fmt.Println("Error parsing DocumentAi data:", err)
+		return nil, fmt.Errorf("error parsing DocumentAi data: %s", err)
 	}
 	expense := dt.mapFields(obj.Entities)
 

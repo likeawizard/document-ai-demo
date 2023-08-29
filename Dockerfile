@@ -7,8 +7,8 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . ./
-RUN go build -o /expense_bot
+RUN make build
 
 EXPOSE 8080
 
-CMD [ "/expense_bot" ]
+CMD [ "/expense-bot" ]

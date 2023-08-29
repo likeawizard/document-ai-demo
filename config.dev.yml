@@ -15,6 +15,11 @@ database:
   host: db
   port: 5432
 
+currency:
+  service: currencyapi
+  endpoint: https://api.currencyapi.com
+  auth-key: 
+
 document-ai:
   project-id:
   processor-id:

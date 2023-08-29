@@ -142,7 +142,6 @@ func (docInt *DocuIntel) fetchResult(resultId string, record database.Record, fi
 	var b []byte
 	var err error
 	for {
-		fmt.Println("retries:", retries)
 		if retries == 0 {
 			return errors.New("failed DocInt fetchResult retries exceeded")
 		}
