@@ -20,7 +20,7 @@ func (dt *DocuIntelTransform) ToCommon() (*Expense, error) {
 	obj := RawDocIntData{}
 	err := json.Unmarshal(dt.Data, &obj)
 	if err != nil {
-		fmt.Println("Error parsing DocuIntel data:", err)
+		return nil, fmt.Errorf("error parsing DocuIntel data: %s", err)
 	}
 	expense := dt.mapFields(obj.AnalyzeResult.Documents[0].Fields)
 

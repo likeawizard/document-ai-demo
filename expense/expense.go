@@ -1,11 +1,16 @@
 package expense
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 
 	"github.com/likeawizard/document-ai-demo/config"
 	"github.com/likeawizard/document-ai-demo/database"
+	"github.com/likeawizard/document-ai-demo/postprocess"
 	"github.com/likeawizard/document-ai-demo/processor"
 	"github.com/likeawizard/document-ai-demo/transform"
 )
@@ -19,10 +24,11 @@ type EventMsg struct {
 }
 
 type ExpenseEngine struct {
-	eventChan        EventChan
-	processService   *processor.ProcessorServcie
-	transformService *transform.DataTransformService
-	Db               database.DB
+	eventChan          EventChan
+	processService     *processor.ProcessorServcie
+	transformService   *transform.DataTransformService
+	postProcessService *postprocess.PostProcessService
+	Db                 database.DB
 }
 
 const (
@@ -55,6 +61,12 @@ func NewExpenseEngine(cfg config.Config) (*ExpenseEngine, error) {
 	}
 	pe.Db = db
 
+	pps, err := postprocess.NewPostProcessService(cfg)
+	if err != nil {
+		return nil, err
+	}
+	pe.postProcessService = pps
+
 	return &pe, nil
 }
 
@@ -64,20 +76,21 @@ func (pe *ExpenseEngine) GetSendChan() EventChan {
 
 func (pe *ExpenseEngine) Listen() {
 	for event := range pe.eventChan {
+		log.Printf("New event for %s with msg %s data : '%+v'", event.Record.Id, event.Msg, event.Data)
 		switch event.Msg {
 		case msgNew:
 			go pe.DispatchProcess(event.Record)
 		case msgProcessed:
 			go pe.DispatchDataTransform(event.Record, event.Data["schema"])
 		case msgTransformed:
-			// TODO initiate postProcess - convert currency and translate
+			go pe.DispatchPostProcess(event.Record)
 		case msgDone:
 			go pe.DispatchDone(event.Record)
 		case msgFailed:
-			go pe.DispatchFailed(event.Record)
+			go pe.DispatchFailed(event.Record, errors.New(event.Data["err"]))
 		default:
-			log.Printf("unknown event message: '%s'", event.Msg)
-			go pe.DispatchFailed(event.Record)
+			err := fmt.Errorf("unknown event message: '%s'", event.Msg)
+			go pe.DispatchFailed(event.Record, err)
 		}
 	}
 }
@@ -85,7 +98,7 @@ func (pe *ExpenseEngine) Listen() {
 func (pe *ExpenseEngine) DispatchProcess(record database.Record) {
 	err := pe.processService.Process(record)
 	if err != nil {
-		pe.eventChan.MsgFailed(record)
+		pe.eventChan.MsgFailed(record, err)
 		return
 	}
 	record.Status = msgProcessed
@@ -97,7 +110,7 @@ func (pe *ExpenseEngine) DispatchProcess(record database.Record) {
 func (pe *ExpenseEngine) DispatchDataTransform(record database.Record, schema string) {
 	err := pe.transformService.Transform(record, schema)
 	if err != nil {
-		pe.eventChan.MsgFailed(record)
+		pe.eventChan.MsgFailed(record, err)
 		return
 	}
 	record.Status = msgTransformed
@@ -105,12 +118,65 @@ func (pe *ExpenseEngine) DispatchDataTransform(record database.Record, schema st
 	pe.eventChan.MsgTransformed(record)
 }
 
+func (pe *ExpenseEngine) DispatchPostProcess(record database.Record) {
+	file, err := pe.postProcessService.FileStore.Get(record.JSON)
+	if err != nil {
+		pe.eventChan.MsgFailed(record, err)
+		return
+	}
+	defer file.Close()
+
+	data, err := io.ReadAll(file)
+	if err != nil {
+		pe.eventChan.MsgFailed(record, err)
+		return
+	}
+
+	var exp transform.Expense
+	err = json.Unmarshal(data, &exp)
+	if err != nil {
+		pe.eventChan.MsgFailed(record, err)
+		return
+	}
+
+	cpp, err := pe.postProcessService.GetCurrencyPostProcess(exp)
+	if err == nil {
+		err = pe.postProcessService.CurrencyService.GetConversionRate(cpp)
+		if err == nil {
+			cpp.Apply(&exp)
+		}
+	}
+
+	tpp, err := pe.postProcessService.GetTranslationPostProcess(exp)
+	if err == nil {
+		err = pe.postProcessService.TranslationService.Translate(tpp)
+		if err == nil {
+			tpp.Apply(&exp)
+		}
+	}
+
+	data, err = json.Marshal(exp)
+	if err != nil {
+		pe.eventChan.MsgFailed(record, err)
+		return
+	}
+
+	err = pe.postProcessService.FileStore.Store(record.JSON, bytes.NewReader(data))
+	if err != nil {
+		pe.eventChan.MsgFailed(record, err)
+		return
+	}
+
+	pe.eventChan.MsgDone(record)
+}
+
 func (pe *ExpenseEngine) DispatchDone(record database.Record) {
 	record.Status = msgDone
 	pe.Db.Update(record)
 }
 
-func (pe *ExpenseEngine) DispatchFailed(record database.Record) {
+func (pe *ExpenseEngine) DispatchFailed(record database.Record, err error) {
+	log.Printf("process pipeline failed: %s", err)
 	record.Status = msgFailed
 	pe.Db.Update(record)
 }
@@ -131,6 +197,6 @@ func (ec EventChan) MsgDone(record database.Record) {
 	ec <- EventMsg{Record: record, Msg: msgDone}
 }
 
-func (ec EventChan) MsgFailed(record database.Record) {
-	ec <- EventMsg{Record: record, Msg: msgFailed}
+func (ec EventChan) MsgFailed(record database.Record, err error) {
+	ec <- EventMsg{Record: record, Msg: msgFailed, Data: map[string]string{"err": err.Error()}}
 }

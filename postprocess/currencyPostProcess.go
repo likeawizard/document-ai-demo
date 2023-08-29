@@ -2,7 +2,6 @@ package postprocess
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/likeawizard/document-ai-demo/config"
@@ -10,14 +9,15 @@ import (
 )
 
 const (
-	convertTo = "EUR"
+	TARGET_CURRENCY = "EUR"
 )
 
 type CurrencyService interface {
-	GetConversionRate(from, to string, date time.Time) (float64, error)
+	GetConversionRate(*CurrencyPostProcess) error
 }
 
 type CurrencyPostProcess struct {
+	rate     float64
 	date     time.Time
 	currency string
 	fields   FieldMap
@@ -32,9 +32,19 @@ func NewCurrencyService(cfg config.CurrencyCfg) (CurrencyService, error) {
 	}
 }
 
-func (pp *CurrencyPostProcess) GetFields(exp transform.Expense) {
+func (pp *CurrencyPostProcess) GetFields(exp transform.Expense) error {
+	switch {
+	case exp.Currency == TARGET_CURRENCY:
+		return fmt.Errorf("nothing to convert")
+	case len(exp.Currency) != 3:
+		return fmt.Errorf("currency not in the three letter ISO format: '%s'", exp.Currency)
+	case exp.Total == 0:
+		return fmt.Errorf("nothing to convert total is zero")
+	}
+
 	if exp.Date.IsZero() {
-		pp.date = time.Now()
+		// TODO historic rates are available only for dates until last midnight. Should be handled in API call - set past date there or query live currency rate
+		pp.date = time.Now().Add(-1 * 24 * time.Hour)
 	} else {
 		pp.date = exp.Date
 	}
@@ -42,29 +52,22 @@ func (pp *CurrencyPostProcess) GetFields(exp transform.Expense) {
 	pp.currency = exp.Currency
 
 	pp.fields = FieldMap{
-		"currency": exp.Currency,
-		"total":    fmt.Sprintf("%f", exp.Total),
-		"tax":      fmt.Sprintf("%f", exp.Tax),
+		"total": fmt.Sprintf("%f", exp.Total),
+		"tax":   fmt.Sprintf("%f", exp.Tax),
 	}
+
+	return nil
 }
 
 func (pp *CurrencyPostProcess) Apply(exp *transform.Expense) {
-	for k, v := range pp.fields {
-		floatVal, err := strconv.ParseFloat(v, 64)
-		if err != nil {
-			continue
-		}
+	for k := range pp.fields {
 		switch k {
 		case "tax":
-			exp.Tax = floatVal
+			exp.Tax *= pp.rate
 		case "total":
-			exp.Total = floatVal
+			exp.Total *= pp.rate
 		}
 	}
 
-	exp.Currency = convertTo
-}
-
-func (pp *CurrencyPostProcess) PostProcess() error {
-	return nil
+	exp.Currency = TARGET_CURRENCY
 }

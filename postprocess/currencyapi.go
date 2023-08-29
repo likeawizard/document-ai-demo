@@ -31,7 +31,7 @@ func (cs *CurrencyApiService) getHistoricalPath() string {
 	return "/v3/historical"
 }
 
-func (cs *CurrencyApiService) GetConversionRate(from, to string, date time.Time) (float64, error) {
+func (cs *CurrencyApiService) GetConversionRate(cpp *CurrencyPostProcess) error {
 	type response struct {
 		Meta struct {
 			LastUpdatedAt time.Time `json:"last_updated_at"`
@@ -43,50 +43,48 @@ func (cs *CurrencyApiService) GetConversionRate(from, to string, date time.Time)
 	}
 
 	params := url.Values{}
-	params.Add("date", date.Format("2006-01-02"))
-	params.Add("base_currency", from)
-	params.Add("currencies", to)
+	params.Add("date", cpp.date.Format("2006-01-02"))
+	params.Add("base_currency", cpp.currency)
+	params.Add("currencies", TARGET_CURRENCY)
 	params.Add("apikey", cs.authKey)
 
 	u, err := url.ParseRequestURI(cs.endpoint)
 	if err != nil {
-		return 1, err
+		return err
 	}
 
 	u.Path = cs.getHistoricalPath()
 	u.RawQuery = params.Encode()
-	fmt.Println(u.String())
 
 	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
-		return 1, err
+		return err
 	}
 	req.Header.Add("apikey", cs.authKey)
 
 	resp, err := cs.client.Do(req)
 	if err != nil {
-		return 1, err
+		return err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
-	fmt.Println(string(body))
 	if err != nil {
-		return 1, err
+		return err
 	}
 
 	var currencyData response
 	err = json.Unmarshal(body, &currencyData)
 	if err != nil {
-		return 1, err
+		return err
 	}
 
-	fmt.Println(currencyData)
-
-	conversionData, ok := currencyData.Data[to]
+	conversionData, ok := currencyData.Data[TARGET_CURRENCY]
 	if !ok {
-		return 1, fmt.Errorf("requested currency conversion missing '%s'", to)
+		return fmt.Errorf("requested currency conversion missing '%s'", TARGET_CURRENCY)
 	}
 
-	return conversionData.Value, nil
+	cpp.rate = conversionData.Value
+
+	return nil
 }
