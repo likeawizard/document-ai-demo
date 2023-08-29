@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -24,13 +25,69 @@ func NewPostgres(cfg config.DbCfg) (*PostgresDb, error) {
 
 func (ps *PostgresDb) Get(id uuid.UUID) (Receipt, error) {
 	r := Receipt{}
-	sql := "SELECT id, filename, status, mime_type, path FROM receipts WHERE id = $1"
-	row := ps.db.QueryRow(context.Background(), sql, id)
-	err := row.Scan(&r.Id, &r.Filename, &r.Status, &r.MimeType, &r.Path)
+	sql := `SELECT r.id, r.filename, r.status, r.mime_type, r.path, t.name FROM receipts r
+		LEFT JOIN tags_to_receipts rel ON rel.receipt_id = r.id
+		LEFT JOIN tags t ON t.id = rel.tag_id
+		WHERE r.id = $1`
+	rows, err := ps.db.Query(context.Background(), sql, id)
+	if err != nil {
+		return r, fmt.Errorf("failed to retrieve receipt for id %s: %w", id, err)
+	}
+	for rows.Next() {
+		tag := ""
+		err := rows.Scan(&r.Id, &r.Filename, &r.Status, &r.MimeType, &r.Path, &tag)
+		if err != nil {
+			continue
+		}
+		r.Tags = append(r.Tags, tag)
+	}
+
 	if err != nil {
 		return r, fmt.Errorf("failed to retrieve receipt for id %s: %w", id, err)
 	}
 	return r, nil
+}
+
+func (ps *PostgresDb) GetByTags(tags []string) ([]Receipt, error) {
+	receipts := make([]Receipt, 0)
+	placeholders := make([]string, 0)
+	args := make([]interface{}, 0)
+	for i, v := range tags {
+		placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
+		args = append(args, v)
+	}
+
+	sql := fmt.Sprintf(`SELECT r.id, r.filename, r.status, r.mime_type, r.path, t.name FROM receipts r
+		LEFT JOIN tags_to_receipts rel ON rel.receipt_id = r.id
+		LEFT JOIN tags t ON t.id = rel.tag_id
+		WHERE t.name IN (%s)`, strings.Join(placeholders, ", "))
+
+	rows, err := ps.db.Query(context.Background(), sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve receipts with tags %s: %w", tags, err)
+	}
+
+	count := -1
+	for rows.Next() {
+		var tmpReceipt Receipt
+		tag := ""
+		err := rows.Scan(&tmpReceipt.Id, &tmpReceipt.Filename, &tmpReceipt.Status, &tmpReceipt.MimeType, &tmpReceipt.Path, &tag)
+		if err != nil {
+			continue
+		}
+
+		if count < 0 || tmpReceipt.Id != receipts[count].Id {
+			receipts = append(receipts, tmpReceipt)
+			count++
+		}
+		receipts[count].Tags = append(receipts[count].Tags, tag)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve receipts with tags %s: %w", tags, err)
+	}
+
+	return receipts, nil
 }
 
 func (ps *PostgresDb) Create(receipt Receipt) error {

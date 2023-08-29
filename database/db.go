@@ -14,6 +14,7 @@ const (
 
 type DB interface {
 	Get(uuid.UUID) (Receipt, error)
+	GetByTags([]string) ([]Receipt, error)
 	Create(Receipt) error
 	Update(Receipt) error
 }

@@ -24,6 +24,11 @@ func (db *InMemoryDb) Get(id uuid.UUID) (Receipt, error) {
 	return Receipt{}, errors.New("receipt not found")
 }
 
+// TODO - dummy method
+func (db *InMemoryDb) GetByTags(tags []string) ([]Receipt, error) {
+	return nil, nil
+}
+
 func (db *InMemoryDb) Create(receipt Receipt) error {
 	if _, ok := db.receipts[receipt.Id]; !ok {
 		db.receipts[receipt.Id] = receipt

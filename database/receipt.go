@@ -18,6 +18,7 @@ type Receipt struct {
 	Id       uuid.UUID `json:"id"`
 	Filename string    `json:"filename"`
 	Status   Status    `json:"status"`
+	Tags     []string  `json:"tags"`
 	MimeType string    `json:"mime_type"`
 	Path     string    `json:"path"`
 }

@@ -52,6 +52,7 @@ func (rest *RestService) registerRoutes() {
 	expenses := rest.Router.Group("expenses")
 	expenses.POST("", rest.expensesCreate)
 	expenses.GET(":uuid", rest.expensesGetOne)
+	expenses.GET("", rest.expensesGetByTags)
 }
 
 func NewRouter(cfg config.AppCfg) *gin.Engine {
@@ -108,6 +109,20 @@ func (rest *RestService) expensesGetOne(c *gin.Context) {
 	}
 
 	c.IndentedJSON(http.StatusOK, receipt)
+}
+
+func (rest *RestService) expensesGetByTags(c *gin.Context) {
+	params := c.Request.URL.Query()
+	tags, ok := params["tags"]
+	if !ok || len(tags) < 1 {
+		c.AbortWithStatus(http.StatusBadRequest)
+	}
+	receipts, err := rest.Db.GetByTags(tags)
+	if err != nil {
+		c.AbortWithError(http.StatusNotFound, err)
+	}
+
+	c.IndentedJSON(http.StatusOK, receipts)
 }
 
 func isSupportedMimeType(mimeType string) bool {
