@@ -26,7 +26,6 @@ type RestService struct {
 var supportedMimeTypes = []string{"application/pdf", "image/gif", "image/tiff", "image/jpeg", "image/png", "image/bmp", "image/webp"}
 
 func NewRestService(cfg config.Config, eventChan expense.EventChan) (*RestService, error) {
-	fmt.Printf("%+v\n", cfg)
 	rest := RestService{
 		Router:    NewRouter(cfg.App),
 		EventChan: eventChan,

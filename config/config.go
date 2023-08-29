@@ -11,10 +11,15 @@ const (
 	SCHEMA_DOCUMENT_AI = "document-ai"
 )
 
+const (
+	CUR_CURR_API = "currencyapi"
+)
+
 type Config struct {
 	App       AppCfg        `yaml:"app"`
 	Store     StorageCfg    `yaml:"store"`
 	Db        DbCfg         `yaml:"database"`
+	Currency  CurrencyCfg   `yaml:"currency"`
 	DocuAI    DocumentAICfg `yaml:"document-ai"`
 	DocuIntel DocuIntelCfg  `yaml:"docu-intel"`
 	Processor ProcessorCfg
@@ -38,6 +43,12 @@ type DbCfg struct {
 	Password string `yaml:"password"`
 	Host     string `yaml:"host"`
 	Port     string `yaml:"port"`
+}
+
+type CurrencyCfg struct {
+	Service  string `yaml:"service"`
+	Endpoint string `yaml:"endpoint"`
+	AuthKey  string `yaml:"auth-key"`
 }
 
 type ProcessorCfg interface {
