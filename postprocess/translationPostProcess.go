@@ -31,7 +31,7 @@ func (pp *TranslationPostProcess) GetFields(exp transform.Expense) error {
 }
 
 func (pp *TranslationPostProcess) Apply(exp *transform.Expense) {
-	for k, v := range pp.fields {
+	for k, v := range pp.translations {
 		switch k {
 		case "merchantAddr":
 			exp.Merchant.MerchantAddress = v
@@ -41,6 +41,4 @@ func (pp *TranslationPostProcess) Apply(exp *transform.Expense) {
 			exp.Merchant.StringVal = v
 		}
 	}
-
-	exp.Currency = TARGET_CURRENCY
 }

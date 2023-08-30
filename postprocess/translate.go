@@ -31,7 +31,6 @@ func (ts *GoogleTranslationService) Translate(tpp *TranslationPostProcess) error
 		vals = append(vals, v)
 	}
 
-	// TODO: hardcoded credentials file.
 	auth := option.WithCredentialsFile(ts.authFile)
 	client, err := translate.NewClient(ctx, auth)
 	if err != nil {
