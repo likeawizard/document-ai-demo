@@ -12,11 +12,14 @@ import (
 )
 
 type GCloudBucket struct {
+	creds  string
 	bucket string
 }
 
 func NewGCloudStore(cfg config.StorageCfg) *GCloudBucket {
+	// TODO: remove hardcoded credentials
 	return &GCloudBucket{
+		creds:  "document-ai-creds.json",
 		bucket: cfg.Location,
 	}
 }
@@ -57,7 +60,7 @@ func (gcStore *GCloudBucket) GetURL(filename string) (string, error) {
 }
 
 func (gcStore *GCloudBucket) getBucket(ctx context.Context) (*storage.BucketHandle, error) {
-	auth := option.WithCredentialsFile("document-ai-creds.json")
+	auth := option.WithCredentialsFile(gcStore.creds)
 	client, err := storage.NewClient(ctx, auth)
 	if err != nil {
 		return nil, err
