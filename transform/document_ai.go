@@ -52,7 +52,7 @@ func (dt *DocumentAiTransform) mapFields(entities []Entity) Expense {
 				timeStr = fmt.Sprintf("%02d:%02d:00", t.Hours, t.Minutes)
 			}
 		case supplierNameType:
-			expense.Merchant.MerchantName = entity.NormalizedValue.Text
+			expense.Merchant.MerchantName = entity.MentionText
 		case supplierAddressType:
 			expense.Merchant.MerchantAddress = entity.NormalizedValue.Text
 		case totalType:

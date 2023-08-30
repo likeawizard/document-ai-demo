@@ -118,7 +118,7 @@ func (pe *ExpenseEngine) DispatchDataTransform(receipt database.Receipt, schema 
 }
 
 func (pe *ExpenseEngine) DispatchPostProcess(receipt database.Receipt) {
-	file, err := pe.postProcessService.FileStore.Get(receipt.GetJsonPath())
+	file, err := pe.postProcessService.FileStore.Get(receipt.GetExpensePath())
 	if err != nil {
 		pe.eventChan.MsgFailed(receipt, err)
 		return
