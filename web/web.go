@@ -52,6 +52,7 @@ func (rest *RestService) registerRoutes() {
 	expenses := rest.Router.Group("expenses")
 	expenses.POST("", rest.expensesCreate)
 	expenses.GET(":uuid", rest.expensesGetOne)
+	expenses.GET("", rest.expensesGetByTags)
 }
 
 func NewRouter(cfg config.AppCfg) *gin.Engine {
@@ -67,6 +68,8 @@ func NewRouter(cfg config.AppCfg) *gin.Engine {
 func (rest *RestService) expensesCreate(c *gin.Context) {
 	id := uuid.New()
 	formFile, _ := c.FormFile("file")
+	params := c.Request.URL.Query()
+	tags := params["tags"]
 	mimeType := formFile.Header.Get("Content-Type")
 	if !isSupportedMimeType(mimeType) {
 		c.AbortWithError(http.StatusBadRequest, fmt.Errorf("unsupported MIME Type '%s'", mimeType))
@@ -82,15 +85,16 @@ func (rest *RestService) expensesCreate(c *gin.Context) {
 	newFilename := fmt.Sprintf("%s%s", id, filepath.Ext(formFile.Filename))
 	rest.FileStore.Store(newFilename, f)
 
-	record := database.New(id)
-	record.Filename = formFile.Filename
-	record.MimeType = mimeType
-	record.Path = newFilename
-	rest.Db.Create(record)
+	receipt := database.New(id)
+	receipt.Filename = formFile.Filename
+	receipt.MimeType = mimeType
+	receipt.Path = newFilename
+	receipt.Tags = tags
+	rest.Db.Create(receipt)
 
-	rest.EventChan.MsgNew(record)
+	rest.EventChan.MsgNew(receipt)
 
-	c.IndentedJSON(http.StatusOK, record)
+	c.IndentedJSON(http.StatusOK, receipt)
 }
 
 func (rest *RestService) expensesGetOne(c *gin.Context) {
@@ -101,13 +105,29 @@ func (rest *RestService) expensesGetOne(c *gin.Context) {
 		return
 	}
 
-	record, err := rest.Db.Get(uuid)
+	receipt, err := rest.Db.Get(uuid)
 	if err != nil {
 		c.AbortWithError(http.StatusNotFound, err)
 		return
 	}
 
-	c.IndentedJSON(http.StatusOK, record)
+	c.IndentedJSON(http.StatusOK, receipt)
+}
+
+func (rest *RestService) expensesGetByTags(c *gin.Context) {
+	params := c.Request.URL.Query()
+	tags, ok := params["tags"]
+	if !ok || len(tags) < 1 {
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	receipts, err := rest.Db.GetByTags(tags)
+	if err != nil {
+		c.AbortWithError(http.StatusNotFound, err)
+		return
+	}
+
+	c.IndentedJSON(http.StatusOK, receipts)
 }
 
 func isSupportedMimeType(mimeType string) bool {

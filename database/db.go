@@ -8,21 +8,19 @@ import (
 )
 
 const (
-	DRIVER_SQLITE    = "sqlite"
 	DRIVER_POSTGRES  = "postgres"
 	DRIVER_IN_MEMORY = "inmemory"
 )
 
 type DB interface {
-	Get(uuid.UUID) (Record, error)
-	Create(Record) error
-	Update(Record) error
+	Get(uuid.UUID) (Receipt, error)
+	GetByTags([]string) ([]Receipt, error)
+	Create(Receipt) error
+	Update(Receipt) error
 }
 
 func NewDataBase(cfg config.DbCfg) (DB, error) {
 	switch cfg.Driver {
-	case DRIVER_SQLITE:
-		return NewSQLiteDb(cfg)
 	case DRIVER_POSTGRES:
 		return NewPostgres(cfg)
 	case DRIVER_IN_MEMORY:

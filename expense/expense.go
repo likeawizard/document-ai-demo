@@ -18,9 +18,9 @@ import (
 type EventChan chan EventMsg
 
 type EventMsg struct {
-	Record database.Record
-	Msg    string
-	Data   map[string]string
+	Receipt database.Receipt
+	Msg     string
+	Data    map[string]string
 }
 
 type ExpenseEngine struct {
@@ -76,66 +76,65 @@ func (pe *ExpenseEngine) GetSendChan() EventChan {
 
 func (pe *ExpenseEngine) Listen() {
 	for event := range pe.eventChan {
-		log.Printf("New event for %s with msg %s data : '%+v'", event.Record.Id, event.Msg, event.Data)
+		log.Printf("New event for %s with msg %s data : '%+v'", event.Receipt.Id, event.Msg, event.Data)
 		switch event.Msg {
 		case msgNew:
-			go pe.DispatchProcess(event.Record)
+			go pe.DispatchProcess(event.Receipt)
 		case msgProcessed:
-			go pe.DispatchDataTransform(event.Record, event.Data["schema"])
+			go pe.DispatchDataTransform(event.Receipt, event.Data["schema"])
 		case msgTransformed:
-			go pe.DispatchPostProcess(event.Record)
+			go pe.DispatchPostProcess(event.Receipt)
 		case msgDone:
-			go pe.DispatchDone(event.Record)
+			go pe.DispatchDone(event.Receipt)
 		case msgFailed:
-			go pe.DispatchFailed(event.Record, errors.New(event.Data["err"]))
+			go pe.DispatchFailed(event.Receipt, errors.New(event.Data["err"]))
 		default:
 			err := fmt.Errorf("unknown event message: '%s'", event.Msg)
-			go pe.DispatchFailed(event.Record, err)
+			go pe.DispatchFailed(event.Receipt, err)
 		}
 	}
 }
 
-func (pe *ExpenseEngine) DispatchProcess(record database.Record) {
-	err := pe.processService.Process(record)
+func (pe *ExpenseEngine) DispatchProcess(receipt database.Receipt) {
+	err := pe.processService.Process(receipt)
 	if err != nil {
-		pe.eventChan.MsgFailed(record, err)
+		pe.eventChan.MsgFailed(receipt, err)
 		return
 	}
-	record.Status = msgProcessed
-	record.JSON = fmt.Sprintf("%s.json", record.Id)
-	pe.Db.Update(record)
-	pe.eventChan.MsgProcessed(record, pe.processService.Processor.Schema())
+	receipt.Status = msgProcessed
+	pe.Db.Update(receipt)
+	pe.eventChan.MsgProcessed(receipt, pe.processService.Processor.Schema())
 }
 
-func (pe *ExpenseEngine) DispatchDataTransform(record database.Record, schema string) {
-	err := pe.transformService.Transform(record, schema)
+func (pe *ExpenseEngine) DispatchDataTransform(receipt database.Receipt, schema string) {
+	err := pe.transformService.Transform(receipt, schema)
 	if err != nil {
-		pe.eventChan.MsgFailed(record, err)
+		pe.eventChan.MsgFailed(receipt, err)
 		return
 	}
-	record.Status = msgTransformed
-	pe.Db.Update(record)
-	pe.eventChan.MsgTransformed(record)
+	receipt.Status = msgTransformed
+	pe.Db.Update(receipt)
+	pe.eventChan.MsgTransformed(receipt)
 }
 
-func (pe *ExpenseEngine) DispatchPostProcess(record database.Record) {
-	file, err := pe.postProcessService.FileStore.Get(record.JSON)
+func (pe *ExpenseEngine) DispatchPostProcess(receipt database.Receipt) {
+	file, err := pe.postProcessService.FileStore.Get(receipt.GetJsonPath())
 	if err != nil {
-		pe.eventChan.MsgFailed(record, err)
+		pe.eventChan.MsgFailed(receipt, err)
 		return
 	}
 	defer file.Close()
 
 	data, err := io.ReadAll(file)
 	if err != nil {
-		pe.eventChan.MsgFailed(record, err)
+		pe.eventChan.MsgFailed(receipt, err)
 		return
 	}
 
 	var exp transform.Expense
 	err = json.Unmarshal(data, &exp)
 	if err != nil {
-		pe.eventChan.MsgFailed(record, err)
+		pe.eventChan.MsgFailed(receipt, err)
 		return
 	}
 
@@ -157,46 +156,46 @@ func (pe *ExpenseEngine) DispatchPostProcess(record database.Record) {
 
 	data, err = json.Marshal(exp)
 	if err != nil {
-		pe.eventChan.MsgFailed(record, err)
+		pe.eventChan.MsgFailed(receipt, err)
 		return
 	}
 
-	err = pe.postProcessService.FileStore.Store(record.JSON, bytes.NewReader(data))
+	err = pe.postProcessService.FileStore.Store(receipt.GetExpensePath(), bytes.NewReader(data))
 	if err != nil {
-		pe.eventChan.MsgFailed(record, err)
+		pe.eventChan.MsgFailed(receipt, err)
 		return
 	}
 
-	pe.eventChan.MsgDone(record)
+	pe.eventChan.MsgDone(receipt)
 }
 
-func (pe *ExpenseEngine) DispatchDone(record database.Record) {
-	record.Status = msgDone
-	pe.Db.Update(record)
+func (pe *ExpenseEngine) DispatchDone(receipt database.Receipt) {
+	receipt.Status = msgDone
+	pe.Db.Update(receipt)
 }
 
-func (pe *ExpenseEngine) DispatchFailed(record database.Record, err error) {
+func (pe *ExpenseEngine) DispatchFailed(receipt database.Receipt, err error) {
 	log.Printf("process pipeline failed: %s", err)
-	record.Status = msgFailed
-	pe.Db.Update(record)
+	receipt.Status = msgFailed
+	pe.Db.Update(receipt)
 }
 
-func (ec EventChan) MsgNew(record database.Record) {
-	ec <- EventMsg{Record: record, Msg: msgNew}
+func (ec EventChan) MsgNew(receipt database.Receipt) {
+	ec <- EventMsg{Receipt: receipt, Msg: msgNew}
 }
 
-func (ec EventChan) MsgProcessed(record database.Record, schema string) {
-	ec <- EventMsg{Record: record, Msg: msgProcessed, Data: map[string]string{"schema": schema}}
+func (ec EventChan) MsgProcessed(receipt database.Receipt, schema string) {
+	ec <- EventMsg{Receipt: receipt, Msg: msgProcessed, Data: map[string]string{"schema": schema}}
 }
 
-func (ec EventChan) MsgTransformed(record database.Record) {
-	ec <- EventMsg{Record: record, Msg: msgTransformed}
+func (ec EventChan) MsgTransformed(receipt database.Receipt) {
+	ec <- EventMsg{Receipt: receipt, Msg: msgTransformed}
 }
 
-func (ec EventChan) MsgDone(record database.Record) {
-	ec <- EventMsg{Record: record, Msg: msgDone}
+func (ec EventChan) MsgDone(receipt database.Receipt) {
+	ec <- EventMsg{Receipt: receipt, Msg: msgDone}
 }
 
-func (ec EventChan) MsgFailed(record database.Record, err error) {
-	ec <- EventMsg{Record: record, Msg: msgFailed, Data: map[string]string{"err": err.Error()}}
+func (ec EventChan) MsgFailed(receipt database.Receipt, err error) {
+	ec <- EventMsg{Receipt: receipt, Msg: msgFailed, Data: map[string]string{"err": err.Error()}}
 }

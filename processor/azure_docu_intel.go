@@ -42,8 +42,8 @@ func (docInt *DocuIntel) Schema() string {
 	return config.SCHEMA_DOC_INT
 }
 
-func (docInt *DocuIntel) Process(record database.Record, fs store.FileStore) error {
-	req, err := docInt.newProcessRequest(record, fs)
+func (docInt *DocuIntel) Process(receipt database.Receipt, fs store.FileStore) error {
+	req, err := docInt.newProcessRequest(receipt, fs)
 	if err != nil {
 		return err
 	}
@@ -61,7 +61,7 @@ func (docInt *DocuIntel) Process(record database.Record, fs store.FileStore) err
 		return fmt.Errorf("could not retrieve id from response")
 	}
 
-	docInt.fetchResult(id, record, fs)
+	docInt.fetchResult(id, receipt, fs)
 
 	return nil
 }
@@ -85,14 +85,14 @@ func (docInt *DocuIntel) doRequest(req *http.Request) ([]byte, error) {
 	return b, nil
 }
 
-func (docInt *DocuIntel) newProcessRequest(record database.Record, fileStore store.FileStore) (*http.Request, error) {
+func (docInt *DocuIntel) newProcessRequest(receipt database.Receipt, fileStore store.FileStore) (*http.Request, error) {
 	url := fmt.Sprintf("%s/formrecognizer/documentModels/%s:analyze?api-version=%s", docInt.endpoint, docInt.modelId, docInt.apiVersion)
 
 	type Payload struct {
 		UrlSource string `json:"urlSource"`
 	}
 
-	sourceUrl, err := fileStore.GetURL(record.Path)
+	sourceUrl, err := fileStore.GetURL(receipt.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +137,7 @@ func (docInt *DocuIntel) analyzeResults(resultId string) ([]byte, error) {
 	return b, nil
 }
 
-func (docInt *DocuIntel) fetchResult(resultId string, record database.Record, fileStore store.FileStore) error {
+func (docInt *DocuIntel) fetchResult(resultId string, receipt database.Receipt, fileStore store.FileStore) error {
 	retries := MAX_FETCH_RETRIES
 	var b []byte
 	var err error
@@ -153,12 +153,11 @@ func (docInt *DocuIntel) fetchResult(resultId string, record database.Record, fi
 		json.Unmarshal(b, &jMap) // Ignore error. Only care about status field. Rest can fail.
 
 		if jMap["status"] == "succeeded" {
-			jsonPath := fmt.Sprintf("%s.json", record.Id)
+			jsonPath := fmt.Sprintf("%s.json", receipt.Id)
 			err = fileStore.Store(jsonPath, bytes.NewReader(b))
 			if err != nil {
 				return fmt.Errorf("failed DocInt store: %w", err)
 			}
-			record.JSON = jsonPath
 			break
 		}
 		retries--

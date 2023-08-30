@@ -33,13 +33,13 @@ func (docAI *GoogleDocumentAI) Schema() string {
 	return config.SCHEMA_DOCUMENT_AI
 }
 
-func (docAI *GoogleDocumentAI) Process(record database.Record, fileStore store.FileStore) error {
+func (docAI *GoogleDocumentAI) Process(receipt database.Receipt, fileStore store.FileStore) error {
 	ctx := context.Background()
 	client, err := docAI.newDocumentProcessorClient(ctx)
 	if err != nil {
 		return err
 	}
-	req, err := docAI.newDocumentProcessorRequest(ctx, record, fileStore)
+	req, err := docAI.newDocumentProcessorRequest(ctx, receipt, fileStore)
 	if err != nil {
 		return err
 	}
@@ -53,7 +53,7 @@ func (docAI *GoogleDocumentAI) Process(record database.Record, fileStore store.F
 	if err != nil {
 		return fmt.Errorf("failed GoogleDocumentAI doc to json marshal: %w", err)
 	}
-	jsonPath := fmt.Sprintf("%s.json", record.Id)
+	jsonPath := fmt.Sprintf("%s.json", receipt.Id)
 	err = fileStore.Store(jsonPath, bytes.NewReader(json))
 	if err != nil {
 		return fmt.Errorf("failed GoogleDocumentAI file storage: %w", err)
@@ -68,8 +68,8 @@ func (docAI *GoogleDocumentAI) newDocumentProcessorClient(ctx context.Context) (
 	return documentai.NewDocumentProcessorClient(ctx, endpointOpt, auth)
 }
 
-func (docAI *GoogleDocumentAI) newDocumentProcessorRequest(ctx context.Context, record database.Record, fileStore store.FileStore) (*documentaipb.ProcessRequest, error) {
-	f, err := fileStore.Get(record.Path)
+func (docAI *GoogleDocumentAI) newDocumentProcessorRequest(ctx context.Context, receipt database.Receipt, fileStore store.FileStore) (*documentaipb.ProcessRequest, error) {
+	f, err := fileStore.Get(receipt.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func (docAI *GoogleDocumentAI) newDocumentProcessorRequest(ctx context.Context, 
 		Source: &documentaipb.ProcessRequest_RawDocument{
 			RawDocument: &documentaipb.RawDocument{
 				Content:  data,
-				MimeType: record.MimeType,
+				MimeType: receipt.MimeType,
 			},
 		},
 	}
