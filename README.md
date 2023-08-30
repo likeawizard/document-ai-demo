@@ -4,27 +4,28 @@
 * `cp config.dev.yml config.yml`
 * Set `config.yml` values:
     * `app` `debug: true` will log some extra info
+    * `processor-driver` which service should be used for processing receipts
+        * Could make a list of supported/active processors and more than one could be used to process a single receipt to improve data extraction via redundancy and second opinion.
     * `secret` placeholder for secretive things the app might do - signing JWTs, etc...
     * `store` currently only supports `driver: os|gcloud` -
         * `os` stores files on the filesystem in the `location` folder. Make sure `location` exists
         * `gcloud` stores files in the `location` bucket on GCloud storage.
             * **TODO** Credentials files are hardcoded. Add options to specify a creds file specifically for storage or use a global GCLoud creds file between the processor and store
             * **TODO** The storage bucket is set to public. This is not a production ready solution and a major privacy breach. The bucket should be set to private and URLs should be created via the `SignedURL` method to not expose the data.
-    * `database` `driver: inmemory|sqlite`
-        * `inmemory` is a simple non-persistant store. Only usable for quick debugging and in tests to naively mock a database.
-        * `sqlite` with `name: <filename.db>` is persistant but still only usable for dirty prototyping
-        * `sqlite` can sometimes have `CGO` related compile issues. Make sure `CGO` is enabled or comment out the driver import in `database/sqlite.go`
+    * `database` with `driver: inmemory|postgres`
+        * `inmemory` is a simple non-persistant store. Only usable for quick debugging and in tests to mock basic database functionality.
     * `document-ai` `project-id`, `processor-id` and `location` should be set according to your processor endpoint. See: [DocumentAI Request](https://cloud.google.com/document-ai/docs/send-request#curl)
         * `credsfile` service account credentials. Make sure the service account has permissions for Document AI. See: [Google Cloud Service Accounts](https://developers.google.com/workspace/guides/create-credentials#service-account)
 
-* Compile `go build -o api main.go` and run `./api` or simply run the app `go run .`
+* Compile `make build` and run the executable `./expense-bot` or simply run the app by executing `go run cmd/expense-bot/main.go`
+* A `Dockerfile` and `compose.yml` is included which include the dockerized version of the app and also the postgress database if needed.
+    * **TODO** Add staged build and produce a light-weight image from the `scratch` image that is suited for production deplyoment.
 
-## Test it
-* Run unit tests with `go test ./...`
+## REST API
 * The app implements a REST API for `expenses/`
-* Currently only `POST` and `GET` requests are supported.
-* POST `expenses/`
+* POST `expenses/?tags=tag1&tags=tag2...`
     * Payload `Content-Type: multipart/form-data` with a single `file` field
+    * Add `tags` to a receipt with query parameters.
     * Sample request with `curl`
         ```
         curl -X POST http://localhost:8080/expenses \
@@ -37,6 +38,7 @@
             "id": "83bfe566-4254-4333-8ed1-7a54f918e796",
             "filename": "document5.pdf",
             "status": "pending",
+            "tags" : ["tag1", "tag2"]
             "mime_type": "application/pdf",
             "path": "83bfe566-4254-4333-8ed1-7a54f918e796.pdf",
             "json_path": "83bfe566-4254-4333-8ed1-7a54f918e796.json"
@@ -54,6 +56,7 @@
             "id": "83bfe566-4254-4333-8ed1-7a54f918e796",
             "filename": "document5.pdf",
             "status": "ready",
+            "tags" : ["tag1", "tag2"]
             "mime_type": "application/pdf",
             "path": "83bfe566-4254-4333-8ed1-7a54f918e796.pdf",
             "json_path": "83bfe566-4254-4333-8ed1-7a54f918e796.json"
@@ -65,9 +68,24 @@
             * When a new receipt is uploaded an entry with `pending` status is created
             * The document processor sends a request to the processor API and updates with a `ready` status on completion
             * Or if the request timeouts or any other error is encountered the status is set to `failed`
+        * `tags` list of tags associated with the receipt
         * `mime_type` uploaded file MIME Type. See supported formats: [DocumentAI file types](https://cloud.google.com/document-ai/docs/file-types)
         * `path` and `json_path` are the stored filenames. Does not include the `store.location` directory. But using the same file store it will retrieve the file correctly. This should be reworked in a complete app and is only a demo version.
-* **TODO** PATCH `expenses/` - allow adding `Tags` to processed expenses
+* GET `expenses/?tags=tag1&tags=tag2`
+    * Get receipts with any of the tags
+    * Could add a paramater to get intersection or union - get only receipts with all the tags or get receipts with any of the tags.
+    * **TODO:** will return correct Receipts but only with tags from query. Simple fix - see comments in `postgres.go` implementation.
+
+## Expense Engine
+The **Expense Engine** acts as a pipeline and listen&dispatch service. It asynchronously manages the processing of receipts uploaded via the **REST API**.
+Currently the pipeline is hardcoded as processes within the pipeline have a linear progression from start to end with no way to alter and configure the pipeline and the order of execution. Some processes could very well be executed in parallel like **Translation** and **Currency Conversion** as they in no way rely on the result of eachother. The only change in order occurs if any of the steps fail and return an error - the pipeline will stop the process and mark the Receipt status as failed. This could be massively improved by identifying recoverable errors - receipt processor via Azure failed? Try the same with Google. Simply send a `EventMsg new` with instructions to use a particular processor to the **Expense Engine** and the process will start over.
+
+### Pipeline
+* `new` - a document was uploaded by the REST API and the process can start. It is sent to a receipt processor like Google Document AI or Azure Document Intelligence
+* `processed` - the processor has finished and returned raw data. Dispatch data transformation to parse the data into a common **Expense** type
+* `transformed` - the data is now transformed into a common data structure and post-processing can be applied. Translation and Currency Conversion. Both translation and currency conversion depend on the parsed data. If the processor was not able to detect the transaction time, currency used and totals, taxes and other money values then the currrency post-process is skipped entirely as it has no data to work with. A processor will still return a lot of valuable data even if it is not detected correctly and identified as a relevant field. A better data transformation layer can improve that and make resonable guesses about the raw data. Different post processing could be ideally done in parallel. Just need to ensure that the transforms are orthogonal - the do not share any field between them so the order of applying of the post-processing transforms should not alter the result.
+* `done` - the last step of the pipeline has finished successfully as all before than and the receipt is fully processed.
+* `failed` - any of the steps in the pipeline failed and was not recovered from. The receipt is marked as failed and no further processing is to be done.
     
 ## Improvements & Scalability
 * While still only a simple Demo/Test app, I for the most part tried to make it as functional and clean as possible.
