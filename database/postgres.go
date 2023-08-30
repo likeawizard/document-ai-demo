@@ -48,6 +48,8 @@ func (ps *PostgresDb) Get(id uuid.UUID) (Receipt, error) {
 	return r, nil
 }
 
+// TODO/FIX: will return correct receipts but will omit receipt tags that were not passed as parameters
+// might need to do two joins of tags- one for selecting receipts one for attaching all tags to selected receipts
 func (ps *PostgresDb) GetByTags(tags []string) ([]Receipt, error) {
 	receipts := make([]Receipt, 0)
 	placeholders := make([]string, 0)
@@ -96,6 +98,7 @@ func (ps *PostgresDb) Create(receipt Receipt) error {
 	if err != nil {
 		return fmt.Errorf("failed to create new receipt with id %s: %w", receipt.Id, err)
 	}
+	ps.setTags(receipt.Id, receipt.Tags)
 	return nil
 }
 
@@ -105,5 +108,34 @@ func (ps *PostgresDb) Update(receipt Receipt) error {
 	if err != nil {
 		return fmt.Errorf("failed to create new receipt with id %s: %w", receipt.Id, err)
 	}
+	ps.setTags(receipt.Id, receipt.Tags)
+	return nil
+}
+
+// TODO: no error checking. reduce number of queries. maybe use a stored procedure for this
+func (ps *PostgresDb) setTags(id uuid.UUID, tags []string) error {
+	if len(tags) < 1 {
+		return nil
+	}
+	deleteSql := `DELETE FROM tags_to_receipts WHERE receipt_id = $1`
+	ps.db.Exec(context.Background(), deleteSql, id)
+
+	inserts := make([]string, 0)
+	rels := make([]string, 0)
+	args := make([]interface{}, 0)
+	for i, v := range tags {
+		inserts = append(inserts, fmt.Sprintf("($%d)", i+1))
+		rels = append(rels, fmt.Sprintf("$%d", i+2))
+		args = append(args, v)
+	}
+	insertSql := fmt.Sprintf(`INSERT INTO tags (name) VALUES %s on CONFLICT DO NOTHING`, strings.Join(inserts, ", "))
+	ps.db.Exec(context.Background(), insertSql, args...)
+
+	linkSql := fmt.Sprintf(`INSERT INTO tags_to_receipts (tag_id, receipt_id)
+	SELECT t.id, $1
+	FROM tags t
+	WHERE t.name IN (%s);`, strings.Join(rels, ", "))
+	args = append([]interface{}{id}, args...)
+	ps.db.Exec(context.Background(), linkSql, args...)
 	return nil
 }

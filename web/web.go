@@ -68,6 +68,8 @@ func NewRouter(cfg config.AppCfg) *gin.Engine {
 func (rest *RestService) expensesCreate(c *gin.Context) {
 	id := uuid.New()
 	formFile, _ := c.FormFile("file")
+	params := c.Request.URL.Query()
+	tags := params["tags"]
 	mimeType := formFile.Header.Get("Content-Type")
 	if !isSupportedMimeType(mimeType) {
 		c.AbortWithError(http.StatusBadRequest, fmt.Errorf("unsupported MIME Type '%s'", mimeType))
@@ -87,6 +89,7 @@ func (rest *RestService) expensesCreate(c *gin.Context) {
 	receipt.Filename = formFile.Filename
 	receipt.MimeType = mimeType
 	receipt.Path = newFilename
+	receipt.Tags = tags
 	rest.Db.Create(receipt)
 
 	rest.EventChan.MsgNew(receipt)
@@ -116,10 +119,12 @@ func (rest *RestService) expensesGetByTags(c *gin.Context) {
 	tags, ok := params["tags"]
 	if !ok || len(tags) < 1 {
 		c.AbortWithStatus(http.StatusBadRequest)
+		return
 	}
 	receipts, err := rest.Db.GetByTags(tags)
 	if err != nil {
 		c.AbortWithError(http.StatusNotFound, err)
+		return
 	}
 
 	c.IndentedJSON(http.StatusOK, receipts)
