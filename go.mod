@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/storage v1.32.0
 	cloud.google.com/go/translate v1.9.0
 	github.com/gin-gonic/gin v1.9.1
-	github.com/jackc/pgx/v5 v5.4.3
+	github.com/jackc/pgx/v5 v5.5.4
 	github.com/stretchr/testify v1.8.4
 	google.golang.org/api v0.138.0
 )
